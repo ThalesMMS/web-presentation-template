@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Apresentação</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body class="presenter">
+  <a class="skip-link" href="#deck">Ir para os slides</a>
+  <div class="connection" role="status">Conexão interrompida. Reconectando…</div>
+  <main class="deck" id="deck" tabindex="-1"></main>
+
+  <button class="corner-qr" id="cornerQr" type="button" aria-label="Abrir página de participação em nova aba">
+    <canvas aria-hidden="true"></canvas>
+  </button>
+
+  <div class="presenter-chrome" aria-label="Controles da apresentação">
+    <span class="slide-counter" id="slideCounter" aria-live="polite"></span>
+    <div class="chrome-actions">
+      <button class="icon-button" id="previousSlide" type="button" aria-label="Slide anterior">←</button>
+      <button class="icon-button" id="nextSlide" type="button" aria-label="Próximo slide">→</button>
+      <button class="icon-button" id="toggleFullscreen" type="button" aria-label="Alternar tela cheia">⛶</button>
+    </div>
+  </div>
+  <div class="progress" aria-hidden="true"><div class="progress-bar" id="progressBar"></div></div>
+
+  <script src="/assets/qrcode.js"></script>
+  <script src="/assets/sync.js"></script>
+  <script type="module">
+    import { CONFIG } from '/presentation.config.js';
+    import { activityForSlide } from '/assets/activity.js';
+
+    const deck = document.querySelector('#deck');
+    const slideCounter = document.querySelector('#slideCounter');
+    const progressBar = document.querySelector('#progressBar');
+    const cornerQr = document.querySelector('#cornerQr');
+    const participantUrl = new URL('/participar/', location.origin).href;
+    let currentIndex = -1;
+    let isController = false;
+    let roomState = { connected: 0, polls: {} };
+
+    const escapeHtml = value => {
+      const node = document.createElement('div');
+      node.textContent = value ?? '';
+      return node.innerHTML;
+    };
+
+    const safeColors = CONFIG.brand?.colors || {};
+    const colorTokens = {
+      background: '--color-bg',
+      surface: '--color-surface',
+      text: '--color-text',
+      muted: '--color-text-muted',
+      accent: '--color-accent',
+      accentStrong: '--color-accent-strong'
+    };
+    for (const [name, token] of Object.entries(colorTokens)) {
+      if (safeColors[name]) document.documentElement.style.setProperty(token, safeColors[name]);
+    }
+
+    document.title = CONFIG.title;
+
+    function pollSlide(slide) {
+      const poll = CONFIG.polls[slide.poll];
+      if (!poll) return '<div class="slide-content"><p>Enquete não encontrada.</p></div>';
+      return `<div class="slide-content">
+        <p class="eyebrow">${escapeHtml(slide.eyebrow || 'Enquete ao vivo')}</p>
+        <h1 class="statement-title">${escapeHtml(poll.question)}</h1>
+        <div class="poll-results" data-poll-results="${escapeHtml(slide.poll)}"></div>
+        <p class="result-summary" data-poll-summary="${escapeHtml(slide.poll)}">Aguardando respostas…</p>
+      </div>`;
+    }
+
+    function slideMarkup(slide) {
+      const eyebrow = slide.eyebrow ? `<p class="eyebrow">${escapeHtml(slide.eyebrow)}</p>` : '';
+      if (slide.type === 'cover') {
+        return `<div class="slide-content cover-layout">
+          <div>${eyebrow}<h1 class="slide-title">${escapeHtml(slide.title)} <span class="highlight">${escapeHtml(slide.highlight || '')}</span></h1><p class="slide-description">${escapeHtml(slide.description || '')}</p></div>
+          <div><div class="qr-card"><canvas class="cover-qr" aria-hidden="true"></canvas><a href="${escapeHtml(participantUrl)}" target="_blank" rel="noopener">${escapeHtml(participantUrl)}</a></div><p class="live-count"><strong data-connected>0</strong> pessoas conectadas</p></div>
+        </div>`;
+      }
+      if (slide.type === 'poll') return pollSlide(slide);
+      if (slide.type === 'list') {
+        return `<div class="slide-content">${eyebrow}<h1 class="statement-title">${escapeHtml(slide.title)}</h1><ul class="slide-list">${(slide.items || []).map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>`;
+      }
+      if (slide.type === 'quote') {
+        return `<div class="slide-content">${eyebrow}<blockquote class="quote-text">${escapeHtml(slide.quote)}</blockquote>${slide.attribution ? `<p class="quote-attribution">— ${escapeHtml(slide.attribution)}</p>` : ''}</div>`;
+      }
+      return `<div class="slide-content">${eyebrow}<h1 class="statement-title">${escapeHtml(slide.title)}</h1>${slide.description ? `<p class="slide-description">${escapeHtml(slide.description)}</p>` : ''}</div>`;
+    }
+
+    deck.innerHTML = CONFIG.slides.map((slide, index) => (
+      `<section class="slide" data-index="${index}" data-activity="${escapeHtml(activityForSlide(slide))}" aria-hidden="true">${slideMarkup(slide)}</section>`
+    )).join('');
+
+    const slides = [...document.querySelectorAll('.slide')];
+    document.querySelectorAll('.cover-qr').forEach(canvas => LivePresentation.drawQr(canvas, participantUrl, 640));
+    LivePresentation.drawQr(cornerQr.querySelector('canvas'), participantUrl, 320);
+    cornerQr.addEventListener('click', () => window.open(participantUrl, '_blank', 'noopener'));
+
+    function renderPollResults() {
+      document.querySelectorAll('[data-poll-results]').forEach(container => {
+        const key = container.dataset.pollResults;
+        const config = CONFIG.polls[key];
+        const result = roomState.polls?.[key] || { responses: 0, counts: {} };
+        const maximum = Math.max(1, ...config.options.map(option => result.counts?.[option.id] || 0));
+        container.innerHTML = config.options.map(option => {
+          const count = result.counts?.[option.id] || 0;
+          const percentage = result.responses ? Math.round(count / result.responses * 100) : 0;
+          const width = count / maximum * 100;
+          return `<div class="result-row ${count > 0 && count === maximum ? 'is-leading' : ''}">
+            <span class="result-label">${escapeHtml(option.label)}</span>
+            <span class="result-track" aria-hidden="true"><span class="result-fill" style="width:${width}%"></span></span>
+            <span class="result-value">${percentage}%</span>
+          </div>`;
+        }).join('');
+        const summary = document.querySelector(`[data-poll-summary="${CSS.escape(key)}"]`);
+        if (summary) {
+          const extra = config.type === 'multiple' && result.responses
+            ? ` · média de ${Number(result.average || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} escolhas por pessoa`
+            : '';
+          summary.textContent = result.responses
+            ? `${result.responses} ${result.responses === 1 ? 'resposta' : 'respostas'}${extra}`
+            : 'Aguardando respostas…';
+        }
+      });
+      document.querySelectorAll('[data-connected]').forEach(node => {
+        node.textContent = roomState.connected || 0;
+      });
+    }
+
+    function goTo(index, { updateHash = true } = {}) {
+      const nextIndex = Math.max(0, Math.min(slides.length - 1, index));
+      if (nextIndex === currentIndex) return;
+      slides.forEach((slide, slideIndex) => {
+        const active = slideIndex === nextIndex;
+        slide.classList.toggle('is-active', active);
+        slide.setAttribute('aria-hidden', String(!active));
+      });
+      currentIndex = nextIndex;
+      slideCounter.textContent = `${nextIndex + 1} / ${slides.length}`;
+      progressBar.style.width = `${(nextIndex + 1) / slides.length * 100}%`;
+      const activity = slides[nextIndex].dataset.activity;
+      cornerQr.classList.toggle('is-visible', activity.startsWith('poll:'));
+      if (updateHash) history.replaceState(null, '', `#/${nextIndex + 1}`);
+      if (isController) connection.sendVital('activity', { type: 'activity', activity });
+    }
+
+    function indexFromHash() {
+      const value = Number((location.hash.match(/\d+/) || [1])[0]);
+      return Number.isFinite(value) ? value - 1 : 0;
+    }
+
+    document.querySelector('#previousSlide').addEventListener('click', () => goTo(currentIndex - 1));
+    document.querySelector('#nextSlide').addEventListener('click', () => goTo(currentIndex + 1));
+    document.querySelector('#toggleFullscreen').addEventListener('click', () => {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen();
+    });
+    addEventListener('hashchange', () => goTo(indexFromHash(), { updateHash: false }));
+    addEventListener('keydown', event => {
+      if (event.target.closest('button, a, input, textarea, select, [contenteditable]')) return;
+      if (['ArrowRight', 'PageDown', ' '].includes(event.key)) {
+        event.preventDefault();
+        goTo(currentIndex + 1);
+      } else if (['ArrowLeft', 'PageUp'].includes(event.key)) {
+        event.preventDefault();
+        goTo(currentIndex - 1);
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        goTo(0);
+      } else if (event.key === 'End') {
+        event.preventDefault();
+        goTo(slides.length - 1);
+      } else if (event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        document.querySelector('#toggleFullscreen').click();
+      }
+    });
+
+    const connection = LivePresentation.connect({
+      role: 'presenter',
+      onState: nextState => {
+        roomState = nextState;
+        renderPollResults();
+      },
+      onHello: message => {
+        isController = Boolean(message.authorized);
+        if (isController && currentIndex >= 0) {
+          connection.sendVital('activity', { type: 'activity', activity: slides[currentIndex].dataset.activity });
+        }
+      }
+    });
+
+    goTo(indexFromHash(), { updateHash: false });
+    renderPollResults();
+  </script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Régie</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Ir para os controles</a>
+  <div class="connection" role="status">Conexão interrompida. Reconectando…</div>
+  <main class="app-shell" id="main">
+    <section class="panel" aria-labelledby="pageTitle">
+      <header class="panel-header">
+        <div>
+          <p class="eyebrow">Painel de controle</p>
+          <h1 id="pageTitle">Régie</h1>
+          <p class="muted">Abra ou feche enquetes e acompanhe as perguntas da plateia.</p>
+        </div>
+        <span class="status" id="status" role="status">Conectando…</span>
+      </header>
+      <div id="warning" role="status"></div>
+
+      <section class="control-section" aria-labelledby="pollsTitle">
+        <h2 id="pollsTitle">Enquetes</h2>
+        <div class="control-grid" id="pollControls"></div>
+      </section>
+
+      <section class="control-section" aria-labelledby="questionsTitle">
+        <div class="question-section-header">
+          <h2 id="questionsTitle">Perguntas da plateia</h2>
+          <span class="muted" id="questionCount">0 pendentes</span>
+        </div>
+        <div class="question-list" id="questionList" aria-live="polite"></div>
+      </section>
+
+      <div class="reset-actions">
+        <button class="button danger" id="resetSession" type="button">Zerar todos os dados</button>
+        <span id="resetFeedback" role="status"></span>
+      </div>
+    </section>
+  </main>
+
+  <script src="/assets/sync.js"></script>
+  <script type="module">
+    import { CONFIG } from '/presentation.config.js';
+
+    const status = document.querySelector('#status');
+    const warning = document.querySelector('#warning');
+    const pollControls = document.querySelector('#pollControls');
+    const questionList = document.querySelector('#questionList');
+    const questionCount = document.querySelector('#questionCount');
+    const resetSession = document.querySelector('#resetSession');
+    const resetFeedback = document.querySelector('#resetFeedback');
+    let roomState;
+    let authorized = false;
+    let authorizationChecked = false;
+
+    document.title = `Régie · ${CONFIG.title}`;
+    const colorTokens = {
+      background: '--color-bg', surface: '--color-surface', text: '--color-text',
+      muted: '--color-text-muted', accent: '--color-accent', accentStrong: '--color-accent-strong'
+    };
+    for (const [name, token] of Object.entries(colorTokens)) {
+      if (CONFIG.brand?.colors?.[name]) document.documentElement.style.setProperty(token, CONFIG.brand.colors[name]);
+    }
+
+    const escapeHtml = value => {
+      const node = document.createElement('div');
+      node.textContent = value ?? '';
+      return node.innerHTML;
+    };
+
+    function formatTime(timestamp) {
+      const date = new Date(Number(timestamp));
+      if (Number.isNaN(date.getTime())) return '';
+      return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function renderPolls() {
+      pollControls.innerHTML = Object.entries(CONFIG.polls).map(([id, config]) => {
+        const poll = roomState?.polls?.[id];
+        const open = Boolean(poll?.open);
+        const count = poll?.responses || 0;
+        return `<article class="control-row">
+          <div><strong>${escapeHtml(config.question)}</strong><p class="control-meta">${open ? 'Aberta' : 'Fechada'} · ${count} ${count === 1 ? 'resposta' : 'respostas'}</p></div>
+          <div class="control-actions">
+            <button class="button" type="button" data-poll-action="open" data-poll="${escapeHtml(id)}" ${authorized ? '' : 'disabled'}>Abrir</button>
+            <button class="button secondary" type="button" data-poll-action="close" data-poll="${escapeHtml(id)}" ${authorized ? '' : 'disabled'}>Fechar</button>
+            <button class="button secondary" type="button" data-poll-action="reset" data-poll="${escapeHtml(id)}" ${authorized ? '' : 'disabled'}>Zerar</button>
+          </div>
+        </article>`;
+      }).join('');
+      pollControls.querySelectorAll('[data-poll-action]').forEach(button => {
+        button.addEventListener('click', () => {
+          const id = button.dataset.poll;
+          const action = button.dataset.pollAction;
+          if (action === 'reset') {
+            if (!confirm(`Zerar as respostas de “${CONFIG.polls[id].question}”?`)) return;
+            connection.send({ type: 'reset_poll', poll: id });
+          } else {
+            connection.send({ type: 'set_poll', poll: id, open: action === 'open' });
+          }
+        });
+      });
+    }
+
+    function renderQuestions() {
+      const questions = [...(roomState?.questions || [])].sort((left, right) => (
+        Number(left.resolved) - Number(right.resolved)
+        || Number(right.createdAt) - Number(left.createdAt)
+      ));
+      const pending = questions.filter(question => !question.resolved).length;
+      questionCount.textContent = `${pending} ${pending === 1 ? 'pendente' : 'pendentes'}`;
+      if (!questions.length) {
+        questionList.innerHTML = '<div class="empty-state">Nenhuma pergunta enviada ainda.</div>';
+        return;
+      }
+      questionList.innerHTML = questions.map(question => {
+        const time = formatTime(question.createdAt);
+        const nextAction = question.resolved ? 'reopen' : 'resolve';
+        return `<article class="question-item ${question.resolved ? 'is-resolved' : ''}" data-question="${question.id}">
+          <div><p>${escapeHtml(question.text)}</p><p class="question-meta">${question.resolved ? 'Respondida' : 'Pendente'}${time ? ` · enviada às ${time}` : ''}</p></div>
+          <div class="question-actions">
+            <button class="button secondary" type="button" data-question-action="${nextAction}">${question.resolved ? 'Reabrir' : 'Marcar como respondida'}</button>
+            <button class="button danger" type="button" data-question-action="delete">Excluir</button>
+          </div>
+        </article>`;
+      }).join('');
+      questionList.querySelectorAll('[data-question-action]').forEach(button => {
+        button.addEventListener('click', () => {
+          const id = Number(button.closest('[data-question]')?.dataset.question);
+          const action = button.dataset.questionAction;
+          if (!Number.isFinite(id)) return;
+          if (action === 'delete' && !confirm('Excluir esta pergunta?')) return;
+          connection.send({ type: 'moderate_question', id, action });
+        });
+      });
+    }
+
+    function render() {
+      status.textContent = roomState
+        ? `${roomState.connected || 0} ${roomState.connected === 1 ? 'pessoa conectada' : 'pessoas conectadas'}`
+        : 'Conectando…';
+      warning.innerHTML = authorized
+        ? ''
+        : `<div class="key-warning">${authorizationChecked ? 'Sessão sem autorização. Abra esta página novamente com a chave correta.' : 'Validando a sessão de controle…'}</div>`;
+      resetSession.disabled = !authorized;
+      renderPolls();
+      renderQuestions();
+    }
+
+    const connection = LivePresentation.connect({
+      role: 'control',
+      onState: nextState => {
+        roomState = nextState;
+        render();
+      },
+      onHello: message => {
+        authorizationChecked = true;
+        authorized = Boolean(message.authorized);
+        render();
+      },
+      onReset: message => {
+        resetSession.disabled = false;
+        resetSession.textContent = 'Zerar todos os dados';
+        resetFeedback.textContent = message.scope === 'poll' ? 'Enquete zerada.' : 'Todos os dados foram zerados.';
+      },
+      onError: message => {
+        resetSession.disabled = false;
+        resetSession.textContent = 'Zerar todos os dados';
+        resetFeedback.textContent = message || 'Não foi possível concluir a ação.';
+      }
+    });
+
+    resetSession.addEventListener('click', () => {
+      if (!confirm('Apagar todos os votos e perguntas desta sala?')) return;
+      resetSession.disabled = true;
+      resetSession.textContent = 'Zerando…';
+      resetFeedback.textContent = '';
+      if (!connection.send({ type: 'reset_session' })) {
+        resetSession.disabled = false;
+        resetSession.textContent = 'Zerar todos os dados';
+        resetFeedback.textContent = 'Sem conexão. Tente novamente.';
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>

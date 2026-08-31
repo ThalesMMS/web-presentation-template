@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Participar</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Ir para a atividade</a>
+  <div class="connection" role="status">Conexão interrompida. Reconectando…</div>
+  <main class="app-shell" id="main">
+    <section class="panel" aria-labelledby="pageTitle">
+      <header class="panel-header">
+        <div>
+          <p class="eyebrow">Participe pelo celular</p>
+          <h1 id="pageTitle">Apresentação</h1>
+        </div>
+        <span class="status" id="status" role="status">Conectando…</span>
+      </header>
+
+      <section class="activity" id="activity" aria-live="polite">
+        <div class="waiting">A atividade aparecerá aqui quando for aberta.</div>
+      </section>
+
+      <form class="question-form" id="questionForm" novalidate>
+        <label for="questionText">Envie uma pergunta ao apresentador</label>
+        <div class="question-row">
+          <textarea id="questionText" name="question" maxlength="400" rows="3" aria-describedby="questionFeedback" placeholder="Escreva sua pergunta"></textarea>
+          <button class="button" id="questionSubmit" type="submit">Enviar pergunta</button>
+        </div>
+        <p class="form-feedback" id="questionFeedback" role="status"></p>
+      </form>
+    </section>
+  </main>
+
+  <script src="/assets/sync.js"></script>
+  <script type="module">
+    import { CONFIG } from '/audience.config.js';
+
+    const activity = document.querySelector('#activity');
+    const status = document.querySelector('#status');
+    const pageTitle = document.querySelector('#pageTitle');
+    const questionForm = document.querySelector('#questionForm');
+    const questionText = document.querySelector('#questionText');
+    const questionSubmit = document.querySelector('#questionSubmit');
+    const questionFeedback = document.querySelector('#questionFeedback');
+    let roomState;
+    let myState = { polls: {} };
+    let sendingQuestion = false;
+
+    pageTitle.textContent = CONFIG.title;
+    document.title = `Participar · ${CONFIG.title}`;
+    const colorTokens = {
+      background: '--color-bg', surface: '--color-surface', text: '--color-text',
+      muted: '--color-text-muted', accent: '--color-accent', accentStrong: '--color-accent-strong'
+    };
+    for (const [name, token] of Object.entries(colorTokens)) {
+      if (CONFIG.brand?.colors?.[name]) document.documentElement.style.setProperty(token, CONFIG.brand.colors[name]);
+    }
+
+    const escapeHtml = value => {
+      const node = document.createElement('div');
+      node.textContent = value ?? '';
+      return node.innerHTML;
+    };
+
+    function render() {
+      if (!roomState) return;
+      status.textContent = `${roomState.connected || 0} ${roomState.connected === 1 ? 'pessoa conectada' : 'pessoas conectadas'}`;
+      const [kind, key] = String(roomState.activity || '').split(':');
+      if (kind !== 'poll') {
+        activity.innerHTML = '<div class="waiting">Acompanhe a apresentação. A próxima enquete aparecerá aqui.</div>';
+        return;
+      }
+      const config = CONFIG.polls[key];
+      const poll = roomState.polls?.[key];
+      if (!config) {
+        activity.innerHTML = '<div class="waiting">Atividade indisponível.</div>';
+        return;
+      }
+      const selected = myState.polls?.[key] || (config.type === 'single' ? '' : {});
+      const inputType = config.type === 'single' ? 'radio' : 'checkbox';
+      activity.innerHTML = `<form data-poll-form="${escapeHtml(key)}">
+        <fieldset style="border:0;padding:0;margin:0" ${poll?.open ? '' : 'disabled'}>
+          <legend class="poll-legend">${escapeHtml(config.question)}</legend>
+          <p class="muted">${poll?.open ? 'Você pode alterar sua resposta enquanto a enquete estiver aberta.' : 'Esta enquete está encerrada.'}</p>
+          <div class="poll-options">${config.options.map(option => {
+            const checked = config.type === 'single' ? selected === option.id : Boolean(selected[option.id]);
+            return `<label class="poll-option ${checked ? 'is-selected' : ''}">
+              <input type="${inputType}" name="poll-option" value="${escapeHtml(option.id)}" ${checked ? 'checked' : ''}>
+              <span>${escapeHtml(option.label)}</span>
+            </label>`;
+          }).join('')}</div>
+        </fieldset>
+      </form>`;
+      activity.querySelectorAll('input[name="poll-option"]').forEach(input => {
+        input.addEventListener('change', () => {
+          if (!poll?.open) return;
+          const value = config.type === 'single' ? true : input.checked;
+          connection.send({ type: 'vote', poll: key, option: input.value, value });
+        });
+      });
+    }
+
+    function setQuestionBusy(busy) {
+      sendingQuestion = busy;
+      questionText.disabled = busy;
+      questionSubmit.disabled = busy;
+      questionSubmit.textContent = busy ? 'Enviando…' : 'Enviar pergunta';
+    }
+
+    questionForm.addEventListener('submit', event => {
+      event.preventDefault();
+      if (sendingQuestion) return;
+      const text = questionText.value.replace(/\s+/g, ' ').trim();
+      questionText.removeAttribute('aria-invalid');
+      if (!text) {
+        questionText.setAttribute('aria-invalid', 'true');
+        questionFeedback.textContent = 'Escreva uma pergunta antes de enviar.';
+        questionText.focus();
+        return;
+      }
+      if (!connection.send({ type: 'question', text })) {
+        questionFeedback.textContent = 'Sem conexão. Tente novamente em alguns segundos.';
+        return;
+      }
+      setQuestionBusy(true);
+      questionFeedback.textContent = 'Enviando…';
+    });
+
+    questionText.addEventListener('input', () => {
+      questionText.removeAttribute('aria-invalid');
+      if (!sendingQuestion) questionFeedback.textContent = '';
+    });
+
+    const connection = LivePresentation.connect({
+      role: 'audience',
+      onState: nextState => {
+        roomState = nextState;
+        render();
+      },
+      onMine: nextState => {
+        myState = nextState;
+        render();
+      },
+      onQuestion: () => {
+        questionText.value = '';
+        setQuestionBusy(false);
+        questionFeedback.textContent = 'Pergunta enviada.';
+      },
+      onError: message => {
+        setQuestionBusy(false);
+        questionFeedback.textContent = message || 'Não foi possível concluir a ação.';
+      }
+    });
+  </script>
+</body>
+</html>
