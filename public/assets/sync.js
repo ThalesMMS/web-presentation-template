@@ -1,4 +1,4 @@
-/* Cliente compartilhado de WebSocket e utilitário de QR code. */
+/* Shared WebSocket client and QR code utility. */
 (function () {
   'use strict';
 
@@ -16,7 +16,7 @@
   })();
 
   function connect(options) {
-    const { role, key = '', onState, onMine, onError, onHello, onQuestion, onReset } = options;
+    const { role, key = '', onState, onMine, onError, onHello, onQuestion, onMessage, onReset } = options;
     const importantMessages = new Map();
     const badge = document.querySelector('.connection');
     let socket;
@@ -57,6 +57,7 @@
         else if (message.type === 'error') onError?.(message.message);
         else if (message.type === 'hello') onHello?.(message);
         else if (message.type === 'question_received') onQuestion?.(message);
+        else if (message.type === 'message_received') onMessage?.(message);
         else if (message.type === 'reset_complete') onReset?.(message);
       });
       socket.addEventListener('close', () => {

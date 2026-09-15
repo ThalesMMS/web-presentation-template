@@ -2,7 +2,7 @@
   "name": "presentation-template",
   "version": "1.0.0",
   "private": true,
-  "description": "Esqueleto de apresentação HTML com votação ao vivo.",
+  "description": "Interactive web presentation template with live polls, messages, audience exams, and a control room.",
   "type": "module",
   "engines": {
     "node": ">=20"

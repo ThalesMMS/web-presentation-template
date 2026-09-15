@@ -1,0 +1,23 @@
+MRI-DIR data license notice
+
+This package contains data from the MRI-DIR collection distributed by The
+Cancer Imaging Archive under Creative Commons Attribution 4.0 International:
+https://creativecommons.org/licenses/by/4.0/
+
+Collection page:
+https://www.cancerimagingarchive.net/collection/mri-dir/
+
+Required data citation:
+Ger, R. B., Yang, J., Ding, Y., Jacobsen, M. C., Cardenas, C. E., Fuller,
+C. D., Howell, R. M., Li, H., Stafford, R. J., Zhou, S., & Court, L. (2018).
+Data from Synthetic and Phantom MR Images for Determining Deformable Image
+Registration Accuracy (MRI-DIR) (Version 1). The Cancer Imaging Archive.
+https://doi.org/10.7937/K9/TCIA.2018.3f08iejt
+
+The source DICOM values and geometry were repackaged as Int16/gzip/base64
+chunks for browser delivery. The images are synthetic/model-derived research
+data, not a diagnostic multisequence examination. Not for clinical use.
+
+The complete CC BY 4.0 legal code and the TCIA notice shipped with the source
+download are available at ../../../LICENSES/CC-BY-4.0.txt and
+../../../LICENSES/MRI-DIR-TCIA.txt.

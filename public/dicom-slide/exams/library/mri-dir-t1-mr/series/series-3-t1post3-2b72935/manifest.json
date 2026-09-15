@@ -1,0 +1,90 @@
+{
+  "format": "dicom-slide-volume/1",
+  "caseId": "mri-dir-t1-mr--series-3-t1post3-2b72935",
+  "title": "T1Post3",
+  "modality": "MR",
+  "dimensions": {
+    "columns": 256,
+    "rows": 256,
+    "slices": 14
+  },
+  "spacing": {
+    "column": 1.0,
+    "row": 1.0,
+    "slice": 4.0
+  },
+  "orientationLPS": [
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0
+  ],
+  "sliceCoordinates": [
+    2.4,
+    6.39999,
+    10.4,
+    14.4,
+    18.4,
+    22.4,
+    26.4,
+    30.4,
+    34.4,
+    38.4,
+    42.4,
+    46.4,
+    50.4,
+    54.4
+  ],
+  "sortMode": "spatial",
+  "pixelType": "int16-le",
+  "samplesPerPixel": 1,
+  "units": "stored units",
+  "invert": false,
+  "valueRange": {
+    "minimum": 0,
+    "maximum": 4286
+  },
+  "initialSlice": 7,
+  "defaultWindow": {
+    "center": 317.0,
+    "width": 634.0
+  },
+  "presets": {
+    "dicom": {
+      "label": "DICOM",
+      "center": 317.0,
+      "width": 634.0
+    },
+    "full": {
+      "label": "Full range",
+      "center": 2143.0,
+      "width": 4286.0
+    }
+  },
+  "chunks": [
+    {
+      "index": 0,
+      "firstSlice": 0,
+      "sliceCount": 7,
+      "script": "chunks/chunk-000.js",
+      "compressedBytes": 281341,
+      "uncompressedBytes": 917504
+    },
+    {
+      "index": 1,
+      "firstSlice": 7,
+      "sliceCount": 7,
+      "script": "chunks/chunk-001.js",
+      "compressedBytes": 328850,
+      "uncompressedBytes": 917504
+    }
+  ],
+  "source": {
+    "studyDescription": "MRI HEAD WITHOUT CON",
+    "seriesDescription": "T1Post3",
+    "seriesNumber": "3",
+    "transferSyntaxUID": "1.2.840.10008.1.2"
+  }
+}
