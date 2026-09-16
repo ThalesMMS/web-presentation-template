@@ -3,6 +3,7 @@ import { createHash, webcrypto } from 'node:crypto';
 import test from 'node:test';
 
 import { CONFIG } from '../public/presentation.config.js';
+import { settingsFromConfig } from '../public/assets/settings.js';
 import worker, {
   normalizeSlide, summarizePoll, computeScores, ranking, sanitizeStudy, sanitizeManifest,
   studyScript, manifestScript, chunkScript, Room
@@ -26,6 +27,11 @@ class MemoryStorage {
   listings = [];
   writes = [];
   async get(key) { return structuredClone(this.data.get(key)); }
+  transaction(callback) {
+    const result = (this.transactions || Promise.resolve()).then(() => callback(this));
+    this.transactions = result.catch(() => {});
+    return result;
+  }
   async put(key, value) {
     if (typeof value === 'string') assert.ok(Buffer.byteLength(value) <= 2 * 1024 * 1024, 'Storage values must fit the SQLite limit');
     this.writes.push(key);
@@ -144,7 +150,7 @@ function scoredState() {
     participants: { 'p-zoe': { name: 'Zoe' }, 'p-bob': { name: 'Bob' }, 'p-amy': { name: 'Amy' }, 'p-idle': { name: 'Idle' } },
     devices: { anonymous: 'missing-participant' },
     polls: {
-      region: { byVoter: { 'p-idle': 'north' } },
+      region: { byVoter: { 'p-idle': 'north-america' } },
       'exam-1': { byVoter: { 'p-zoe': 'neoplasia', 'p-bob': 'neoplasia', 'p-amy': 'neoplasia', anonymous: 'neoplasia' } },
       'exam-2': { byVoter: { 'p-zoe': 'neoplasia', 'p-bob': 'neoplasia', 'p-amy': 'trauma', anonymous: 'neoplasia' } }
     }
@@ -246,7 +252,7 @@ test('Room starts with version two state and separates public and control payloa
   assert.deepEqual(state.polls['exam-1'], { open: false, locked: false, byVoter: {} });
   assert.equal(state.boards['exam-2'].moderation, 'manual');
   const publicState = h.room.aggregate(state);
-  assert.deepEqual(Object.keys(publicState).sort(), ['type', 'now', 'slide', 'audience', 'connected', 'points', 'polls', 'boards', 'exams', 'ranking', 'scoredPolls'].sort());
+  assert.deepEqual(Object.keys(publicState).sort(), ['type', 'now', 'slide', 'audience', 'connected', 'points', 'polls', 'boards', 'exams', 'ranking', 'scoredPolls', 'settingsRevision'].sort());
   assert.equal(publicState.connected, 1);
   assert.equal(publicState.scoredPolls, 2);
   assert.deepEqual(publicState.ranking, []);
@@ -717,13 +723,143 @@ async function presenterCookie(h, origin = 'https://presentation.test') {
   return response.headers.get('Set-Cookie');
 }
 
+function settingsRequest(settings, cookie, revision = 0, headers = {}) {
+  return new Request('https://presentation.test/api/settings', {
+    method: 'PUT', headers: { Cookie: cookie, Origin: 'https://presentation.test', 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ revision, settings })
+  });
+}
+
+test('settings save updates both configurations, survives a Room restart and keeps session data', async t => {
+  const h = workerHarness(t);
+  const cookie = await presenterCookie(h);
+  await h.send(h.control, { type: 'slide', slide: 'poll-live' });
+  await h.send(h.audience, { type: 'vote', poll: 'region', option: 'south-america' });
+  await h.send(h.audience, { type: 'question', text: 'Keep my question' });
+  const settings = settingsFromConfig(CONFIG);
+  settings.title = 'Settings verification';
+  settings.brand.colors.accent = '#aabbcc';
+  settings.features.canvas = { enabled: false, url: '', label: 'Whiteboard' };
+  settings.timing.totalMinutes = 45;
+  settings.timing.slides['poll-live'] = 0;
+  delete settings.timing.slides['exam-1'];
+  settings.slides.cover.title = 'A new cover';
+  const response = await h.fetch(settingsRequest(settings, cookie));
+  assert.equal(response.status, 200);
+  const { config } = await response.json();
+  assert.equal(config.title, settings.title);
+  assert.equal(config.slides[0].title, 'A new cover');
+  assert.equal(config.timing.slides['poll-live'], 0);
+  assert.equal(config.timing.slides['exam-1'], undefined);
+  assert.deepEqual(config.features.canvas, settings.features.canvas);
+  assert.deepEqual(config.polls, CONFIG.polls);
+  assert.equal(latest(h.audience, 'state').settingsRevision, 1);
+  assert.equal(latest(h.control, 'state').settingsRevision, 1);
+  assert.equal((await h.room.getState()).polls.region.byVoter['device-one'], 'south-america');
+  assert.equal((await h.room.getState()).questions.length, 1);
+  for (const path of ['/presentation.config.js', '/audience.config.js']) {
+    const response = await h.fetch(new Request(`https://presentation.test${path}`, { headers: { Cookie: cookie } }));
+    const config = new Function((await response.text()).replace('export const CONFIG =', 'return'))();
+    assert.equal(config.settingsRevision, 1);
+    assert.equal(config.title, settings.title);
+    assert.equal(config.brand.colors.accent, '#aabbcc');
+    assert.equal(response.headers.get('Cache-Control'), 'no-store');
+    if (path === '/audience.config.js') {
+      assert.equal(config.features, undefined);
+      assert.equal(config.slides, undefined);
+      assert.equal(config.polls['exam-1'].correct, undefined);
+    }
+  }
+  const restarted = new Room(h.context, { PRESENTER_KEY: SECRET });
+  const restored = await restarted.fetch(new Request('https://presentation.test/api/settings', { headers: { [AUTH_HEADER]: '1' } }));
+  assert.equal((await restored.json()).config.title, settings.title);
+  await h.send(h.control, { type: 'reset_session' });
+  const afterReset = await h.fetch(new Request('https://presentation.test/api/settings', { headers: { Cookie: cookie } }));
+  assert.equal((await afterReset.json()).config.title, settings.title);
+});
+
+test('settings reject stale edits, unsafe inputs and oversized bodies without overwriting saved values', async t => {
+  const h = workerHarness(t);
+  const cookie = await presenterCookie(h);
+  const settings = settingsFromConfig(CONFIG);
+  assert.equal((await h.fetch(settingsRequest(settings, cookie))).status, 200);
+  assert.equal((await h.fetch(settingsRequest({ ...settings, title: 'Stale draft' }, cookie))).status, 409);
+  const invalidEdits = [
+    draft => { draft.features.canvas.url = 'javascript:alert(1)'; },
+    draft => { draft.presenter.contact.github = 'data:text/html,invalid'; },
+    draft => { draft.citation.url = 'https://user:password@example.com/'; },
+    draft => { draft.timing.totalMinutes = -1; },
+    draft => { draft.timing.slides.cover = 'two'; },
+    draft => { draft.brand.colors.accent = 'red; display:none'; },
+    draft => { draft.slides.cover.topics = [123]; },
+    draft => { draft.slides.cover.title = 'x'.repeat(201); },
+    draft => { draft.title = ''; }
+  ];
+  for (const edit of invalidEdits) {
+    const draft = structuredClone(settings);
+    edit(draft);
+    assert.equal((await h.fetch(settingsRequest(draft, cookie, 1))).status, 400);
+  }
+  const large = settingsRequest({ ...settings, title: 'é'.repeat(70000) }, cookie, 1);
+  assert.equal(large.headers.has('Content-Length'), false);
+  assert.equal((await h.fetch(large)).status, 413);
+  assert.equal(h.storage.data.get('settings').revision, 1);
+  assert.equal(h.storage.data.get('settings').settings.title, CONFIG.title);
+  assert.equal(latest(h.audience, 'state').settingsRevision, 1);
+});
+
+test('settings endpoints require a presenter session and same-origin JSON writes', async t => {
+  const h = workerHarness(t);
+  const cookie = await presenterCookie(h);
+  const settings = settingsFromConfig(CONFIG);
+  for (const path of ['/api/settings', '/presentation.config.js']) {
+    assert.equal((await h.fetch(new Request(`https://presentation.test${path}`, { headers: { [AUTH_HEADER]: '1' } }))).status, 404);
+  }
+  assert.equal((await h.fetch(settingsRequest(settings, '', 0, { [AUTH_HEADER]: '1' }))).status, 404);
+  assert.equal((await h.fetch(settingsRequest(settings, cookie, 0, { Origin: 'https://other.test' }))).status, 403);
+  assert.equal((await h.fetch(settingsRequest(settings, cookie, 0, { 'Content-Type': 'text/plain' }))).status, 403);
+  assert.equal((await h.fetch(new Request('https://presentation.test/api/settings', { method: 'DELETE', headers: { Cookie: cookie } }))).status, 405);
+  assert.equal(h.storage.data.has('settings'), false);
+});
+
+test('concurrent settings saves cannot overwrite another presenter with a stale revision', async t => {
+  const h = workerHarness(t);
+  const cookie = await presenterCookie(h);
+  const settings = settingsFromConfig(CONFIG);
+  const responses = await Promise.all(['First draft', 'Second draft'].map(title =>
+    h.fetch(settingsRequest({ ...settings, title }, cookie))));
+  assert.deepEqual(responses.map(response => response.status).sort(), [200, 409]);
+  assert.equal(h.storage.data.get('settings').revision, 1);
+  const winning = await responses.find(response => response.status === 200).json();
+  assert.equal(h.storage.data.get('settings').settings.title, winning.config.title);
+});
+
+test('settings cannot change activity definitions or advertise a failed storage write', async t => {
+  const h = workerHarness(t);
+  const cookie = await presenterCookie(h);
+  const settings = settingsFromConfig(CONFIG);
+  settings.polls = { 'exam-1': { correct: 'trauma' } };
+  settings.slides.cover.type = 'closing';
+  settings.slides.cover.poll = 'exam-1';
+  const saved = await h.fetch(settingsRequest(settings, cookie));
+  const { config } = await saved.json();
+  assert.equal(config.slides[0].type, 'cover');
+  assert.equal(config.slides[0].poll, undefined);
+  assert.equal(config.polls['exam-1'].correct, 'neoplasia');
+  t.mock.method(h.storage, 'put', async () => { throw new Error('Storage unavailable'); });
+  await assert.rejects(h.fetch(settingsRequest({ ...settings, title: 'Unsaved' }, cookie, 1)), /Storage unavailable/);
+  const current = await h.fetch(new Request('https://presentation.test/api/settings', { headers: { Cookie: cookie } }));
+  assert.equal((await current.json()).config.title, CONFIG.title);
+  assert.equal(latest(h.audience, 'state').settingsRevision, 1);
+});
+
 test('audience config exposes only the public contract and removes every correct answer', async t => {
   const h = workerHarness(t);
   const response = await h.fetch(new Request('https://presentation.test/audience.config.js'));
   assert.equal(response.status, 200);
   const source = await response.text();
   const config = new Function(source.replace('export const CONFIG =', 'return'))();
-  assert.deepEqual(Object.keys(config).sort(), ['title', 'brand', 'presenter', 'citation', 'polls', 'boards', 'exams'].sort());
+  assert.deepEqual(Object.keys(config).sort(), ['title', 'brand', 'presenter', 'citation', 'polls', 'boards', 'exams', 'settingsRevision'].sort());
   assert.deepEqual(config.presenter, CONFIG.presenter);
   assert.deepEqual(config.exams, CONFIG.exams);
   for (const [key, poll] of Object.entries(config.polls)) {

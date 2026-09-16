@@ -16,17 +16,38 @@
         <div>
           <p class="eyebrow" id="presentationTitle">Live presentation</p>
           <h1>Control room</h1>
-          <p class="muted">Manage the session and messages from the audience.</p>
+          <p class="muted">Manage the session, audience messages, and presentation settings.</p>
         </div>
         <span class="status" id="status" role="status">Connecting…</span>
       </div>
       <p class="regie-current-slide"><span class="muted">Current slide</span> <strong id="currentSlide">Waiting for state…</strong></p>
       <div id="warning" role="status"><div class="key-warning">Validating the control session…</div></div>
+      <nav class="regie-navigation" aria-label="Control room sections">
+        <a class="button" id="sessionTab" href="#session" aria-current="page">Session</a>
+        <a class="button secondary" id="settingsTab" href="#settings">Settings</a>
+        <a class="button secondary regie-stage-link" href="/" target="_blank" rel="noopener noreferrer">Open presentation</a>
+      </nav>
     </header>
 
     <p class="regie-feedback" id="feedback" role="status" aria-atomic="true"></p>
 
-    <div class="regie-grid">
+    <section id="settingsPanel" aria-labelledby="settingsTitle" hidden>
+      <h2 id="settingsTitle">Settings</h2>
+      <p class="muted">Save changes to update the presentation and audience. Settings are kept when you close this page or reset the session.</p>
+      <form id="settingsForm">
+        <fieldset class="settings-grid" id="settingsFields" disabled aria-label="Presentation settings"></fieldset>
+        <div class="panel settings-actions">
+          <p class="regie-feedback" id="settingsFeedback" role="status" aria-atomic="true"></p>
+          <div class="regie-navigation">
+            <button class="button" id="saveSettings" type="submit" disabled>Save settings</button>
+            <button class="button secondary" id="discardSettings" type="button" disabled>Discard changes</button>
+            <button class="button secondary" id="defaultSettings" type="button" disabled>Restore defaults</button>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <div class="regie-grid" id="sessionPanel">
       <section class="panel regie-section" aria-labelledby="sessionTitle">
         <h2 id="sessionTitle">Session</h2>
         <div class="regie-setting">
@@ -80,7 +101,11 @@
 
   <script src="/assets/sync.js"></script>
   <script type="module">
-    import { CONFIG } from '/presentation.config.js';
+    import { CONFIG as initialConfig } from '/presentation.config.js';
+    import { applyBrand } from '/assets/settings.js';
+    import { mountSettings } from '/assets/regie-settings.js';
+
+    let CONFIG = initialConfig;
 
     const elements = Object.fromEntries([
       'presentationTitle', 'status', 'currentSlide', 'warning', 'feedback',
@@ -93,15 +118,29 @@
     let authorized = false;
     let authorizationChecked = false;
 
-    document.title = `Control room · ${CONFIG.title}`;
-    elements.presentationTitle.textContent = CONFIG.title;
-    const colorTokens = {
-      background: '--color-bg', surface: '--color-surface', text: '--color-text',
-      muted: '--color-text-muted', accent: '--color-accent', accentStrong: '--color-accent-strong'
-    };
-    for (const [name, token] of Object.entries(colorTokens)) {
-      if (CONFIG.brand?.colors?.[name]) document.documentElement.style.setProperty(token, CONFIG.brand.colors[name]);
+    const settingsEditor = mountSettings(CONFIG, updateConfig);
+    function updateConfig(config) {
+      if (config.settingsRevision < CONFIG.settingsRevision) return;
+      CONFIG = config;
+      document.title = `Control room · ${CONFIG.title}`;
+      elements.presentationTitle.textContent = CONFIG.title;
+      applyBrand(CONFIG);
+      settingsEditor.update(config);
+      render();
     }
+    function showSection() {
+      const settings = location.hash === '#settings';
+      document.getElementById('settingsPanel').hidden = !settings;
+      document.getElementById('sessionPanel').hidden = settings;
+      for (const [id, active] of [['settingsTab', settings], ['sessionTab', !settings]]) {
+        const link = document.getElementById(id);
+        link.classList.toggle('secondary', !active);
+        if (active) link.setAttribute('aria-current', 'page');
+        else link.removeAttribute('aria-current');
+      }
+    }
+    addEventListener('hashchange', showSection);
+    showSection();
 
     const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -271,6 +310,8 @@
 
     const connection = LivePresentation.connect({
       role: 'control',
+      config: CONFIG,
+      onConfig: updateConfig,
       onState: nextState => {
         roomState = nextState;
         render();
@@ -278,6 +319,7 @@
       onHello: message => {
         authorizationChecked = true;
         authorized = Boolean(message.authorized);
+        settingsEditor.authorize(authorized);
         render();
       },
       onReset: message => {
@@ -362,7 +404,7 @@
       sendControl({ type: 'reset_session' });
     });
 
-    render();
+    updateConfig(CONFIG);
   </script>
 </body>
 </html>

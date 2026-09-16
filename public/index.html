@@ -29,6 +29,7 @@
     <a class="toolbar-button audience-link" id="audienceLink" href="/participar/" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">🔗</span> /participar/</a>
     <button class="toolbar-button" id="qrButton" type="button" aria-haspopup="dialog" aria-controls="qrOverlay" aria-expanded="false">QR</button>
     <button class="toolbar-button" id="canvasButton" type="button" aria-haspopup="dialog" aria-controls="canvasDialog" aria-expanded="false" hidden>Canvas</button>
+    <a class="toolbar-button" id="settingsLink" href="/regie/#settings" target="_blank" rel="noopener noreferrer">Settings</a>
     <button class="icon-button" id="toggleFullscreen" type="button" aria-label="Enter fullscreen" title="Enter fullscreen">⛶</button>
   </nav>
   <div class="progress" aria-hidden="true"><div class="progress-bar" id="progressBar"></div></div>
@@ -54,9 +55,12 @@
   <script src="/assets/qrcode.js"></script>
   <script src="/assets/sync.js"></script>
   <script type="module">
-    import { CONFIG } from '/presentation.config.js';
+    import { CONFIG as initialConfig } from '/presentation.config.js';
     import { paceSchedule, scoredPollKeys } from '/assets/slides.js';
     import { mountExam } from '/assets/stage-exam.js';
+    import { applyBrand } from '/assets/settings.js';
+
+    let CONFIG = initialConfig;
 
     const deck = document.querySelector('#deck');
     const slideCounter = document.querySelector('#slideCounter');
@@ -74,7 +78,7 @@
     const fullscreenButton = document.querySelector('#toggleFullscreen');
     const stageFeedback = document.querySelector('#stageFeedback');
     const participantUrl = new URL('/participar/', location.origin).href;
-    const schedule = paceSchedule(CONFIG);
+    let schedule = paceSchedule(CONFIG);
     const numberFormat = new Intl.NumberFormat('en', { maximumFractionDigits: 1 });
     const toolbar = document.querySelector('.presenter-chrome');
     new ResizeObserver(() => {
@@ -92,22 +96,16 @@
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     })[character]);
 
-    const colorTokens = {
-      background: '--color-bg', surface: '--color-surface', text: '--color-text',
-      muted: '--color-text-muted', accent: '--color-accent', accentStrong: '--color-accent-strong'
-    };
-    for (const [name, token] of Object.entries(colorTokens)) {
-      if (CONFIG.brand?.colors?.[name]) document.documentElement.style.setProperty(token, CONFIG.brand.colors[name]);
-    }
+    applyBrand(CONFIG);
     document.title = CONFIG.title;
 
     function heading(slide, titleClass = 'statement-title') {
-      return `${slide.eyebrow ? `<p class="eyebrow">${escapeHtml(slide.eyebrow)}</p>` : ''}
-        <h1 class="${titleClass}" id="title-${escapeHtml(slide.id)}">${escapeHtml(slide.title || CONFIG.title)}</h1>`;
+      return `<p class="eyebrow" data-slide-text="eyebrow" ${slide.eyebrow ? '' : 'hidden'}>${escapeHtml(slide.eyebrow)}</p>
+        <h1 class="${titleClass}" data-slide-text="title" id="title-${escapeHtml(slide.id)}">${escapeHtml(slide.title || CONFIG.title)}</h1>`;
     }
 
-    function listMarkup(items) {
-      return `<ul class="slide-list">${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+    function listMarkup(items = [], key = 'items') {
+      return `<ul class="slide-list" data-slide-list="${key}" ${items.length ? '' : 'hidden'}>${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
     }
 
     function pollMarkup(slide) {
@@ -140,10 +138,9 @@
 
     function supportingMarkup(slide) {
       if (slide.board) return boardMarkup(slide.board);
-      if (slide.explanation) return `<p class="stage-explanation">${escapeHtml(slide.explanation)}</p>`;
-      if (slide.items?.length) return listMarkup(slide.items);
-      if (slide.description) return `<p class="stage-explanation">${escapeHtml(slide.description)}</p>`;
-      return '';
+      return `<p class="stage-explanation" data-slide-text="explanation" ${slide.explanation ? '' : 'hidden'}>${escapeHtml(slide.explanation)}</p>
+        ${listMarkup(slide.explanation ? [] : slide.items)}
+        <p class="stage-explanation" data-slide-text="description" ${!slide.explanation && !slide.items?.length && slide.description ? '' : 'hidden'}>${escapeHtml(slide.description)}</p>`;
     }
 
     function contactMarkup() {
@@ -165,8 +162,8 @@
       if (slide.type === 'cover') {
         return `<div class="slide-content cover-layout">
           <div>${heading(slide, 'slide-title')}
-            <p class="slide-description">${escapeHtml(slide.description || CONFIG.subtitle || '')}</p>
-            ${slide.topics?.length ? listMarkup(slide.topics) : ''}
+            <p class="slide-description" data-slide-text="description">${escapeHtml(slide.description || CONFIG.subtitle || '')}</p>
+            ${listMarkup(slide.topics, 'topics')}
           </div>
           <div class="cover-participation"><div class="qr-card">
             <canvas class="cover-qr" role="img" aria-label="QR code for the audience page"></canvas>
@@ -176,7 +173,7 @@
       }
       if (slide.type === 'pause') {
         return `<div class="slide-content pause-layout">${heading(slide, 'slide-title')}
-          ${slide.description ? `<p class="slide-description">${escapeHtml(slide.description)}</p>` : ''}</div>`;
+          <p class="slide-description" data-slide-text="description" ${slide.description ? '' : 'hidden'}>${escapeHtml(slide.description)}</p></div>`;
       }
       if (slide.type === 'closing') {
         const citation = CONFIG.citation || {};
@@ -189,10 +186,10 @@
             </table></div>
           </section>
           <div class="closing-message">${heading(slide, 'slide-title')}
-            ${slide.description ? `<p class="slide-description">${escapeHtml(slide.description)}</p>` : ''}
+            <p class="slide-description" data-slide-text="description" ${slide.description ? '' : 'hidden'}>${escapeHtml(slide.description)}</p>
             <section class="stage-citation"><h2>How to cite</h2>
-              <p>${escapeHtml(citation.text)}</p>
-              ${citation.url ? `<a href="${escapeHtml(citation.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(citation.url)}</a>` : ''}
+              <p data-citation-text>${escapeHtml(citation.text)}</p>
+              <a data-citation-url href="${escapeHtml(citation.url)}" target="_blank" rel="noopener noreferrer" ${citation.url ? '' : 'hidden'}>${escapeHtml(citation.url)}</a>
             </section>
             ${contactMarkup()}
           </div>
@@ -339,16 +336,20 @@
       renderPace();
     });
     const totalTime = document.querySelector('#totalTime');
-    totalTime.textContent = `⏲ ${numberFormat.format(schedule.total)} min`;
-    totalTime.title = [`Total duration: ${numberFormat.format(schedule.total)} minutes`, ...CONFIG.slides.map((slide, index) => {
-      const next = CONFIG.slides[index + 1];
-      const start = schedule.expected[slide.id];
-      const declared = CONFIG.timing?.slides?.[slide.id];
-      const end = next ? schedule.expected[next.id] : declared !== undefined ? start + declared
-        : slide.type === 'cover' ? start : Math.max(start, schedule.total);
-      return `${index + 1}. ${slide.title || slide.id}: ${numberFormat.format(end - start)} min (starts at ${clockText(start * 60)})`;
-    })].join('\n');
-    totalTime.setAttribute('aria-label', totalTime.title);
+    function renderTiming() {
+      totalTime.textContent = `⏲ ${numberFormat.format(schedule.total)} min`;
+      totalTime.title = [`Total duration: ${numberFormat.format(schedule.total)} minutes`, ...CONFIG.slides.map((slide, index) => {
+        const next = CONFIG.slides[index + 1];
+        const start = schedule.expected[slide.id];
+        const declared = CONFIG.timing?.slides?.[slide.id];
+        const end = next ? schedule.expected[next.id] : declared !== undefined ? start + declared
+          : slide.type === 'cover' ? start : Math.max(start, schedule.total);
+        return `${index + 1}. ${slide.title || slide.id}: ${numberFormat.format(end - start)} min (starts at ${clockText(start * 60)})`;
+      })].join('\n');
+      totalTime.setAttribute('aria-label', totalTime.title);
+      renderPace();
+    }
+    renderTiming();
     setInterval(renderPace, 1000);
 
     function closeSlideMenu({ restoreFocus = false } = {}) {
@@ -436,24 +437,66 @@
     qrOverlay.addEventListener('click', () => qrOverlay.close());
     qrOverlay.addEventListener('close', () => qrButton.setAttribute('aria-expanded', 'false'));
 
-    if (CONFIG.features?.canvas?.enabled) {
-      const canvas = CONFIG.features.canvas;
-      const frame = document.querySelector('#canvasFrame');
-      canvasButton.hidden = false;
-      canvasDialog.hidden = false;
+    const frame = document.querySelector('#canvasFrame');
+    function renderCanvas() {
+      const canvas = CONFIG.features?.canvas || {};
+      canvasButton.hidden = !canvas.enabled;
+      canvasDialog.hidden = !canvas.enabled;
       canvasButton.textContent = canvas.label || 'Canvas';
       document.querySelector('#canvasTitle').textContent = canvas.label || 'Canvas';
       frame.title = canvas.label || 'Canvas';
-      canvasButton.addEventListener('click', () => {
-        closeSlideMenu();
-        // Assign the URL only in response to the first explicit open action.
-        if (!frame.hasAttribute('src')) frame.src = canvas.url;
-        canvasDialog.showModal();
-        canvasButton.setAttribute('aria-expanded', 'true');
-      });
-      canvasDialog.querySelector('.stage-dialog-close').addEventListener('click', () => canvasDialog.close());
-      canvasDialog.addEventListener('click', event => { if (event.target === canvasDialog) canvasDialog.close(); });
-      canvasDialog.addEventListener('close', () => canvasButton.setAttribute('aria-expanded', 'false'));
+      if (!canvas.enabled || (frame.hasAttribute('src') && frame.getAttribute('src') !== canvas.url)) {
+        canvasDialog.close();
+        frame.removeAttribute('src');
+      }
+    }
+    renderCanvas();
+    canvasButton.addEventListener('click', () => {
+      closeSlideMenu();
+      if (!frame.hasAttribute('src')) frame.src = CONFIG.features.canvas.url;
+      canvasDialog.showModal();
+      canvasButton.setAttribute('aria-expanded', 'true');
+    });
+    canvasDialog.querySelector('.stage-dialog-close').addEventListener('click', () => canvasDialog.close());
+    canvasDialog.addEventListener('click', event => { if (event.target === canvasDialog) canvasDialog.close(); });
+    canvasDialog.addEventListener('close', () => canvasButton.setAttribute('aria-expanded', 'false'));
+
+    function updateConfig(config) {
+      if (config.settingsRevision < CONFIG.settingsRevision) return;
+      CONFIG = config;
+      document.title = CONFIG.title;
+      applyBrand(CONFIG);
+      schedule = paceSchedule(CONFIG);
+      for (const [index, slide] of CONFIG.slides.entries()) {
+        const section = slides[index];
+        for (const node of section.querySelectorAll('[data-slide-text]')) {
+          const key = node.dataset.slideText;
+          const text = key === 'title' ? slide.title || CONFIG.title
+            : key === 'description' && slide.type === 'cover' ? slide.description || CONFIG.subtitle : slide[key];
+          node.textContent = text || '';
+          node.hidden = !text;
+          if (key === 'description' && slide.type === 'content') node.hidden ||= Boolean(slide.explanation || slide.items?.length);
+        }
+        for (const node of section.querySelectorAll('[data-slide-list]')) {
+          const items = slide[node.dataset.slideList] || [];
+          node.innerHTML = items.map(item => `<li>${escapeHtml(item)}</li>`).join('');
+          node.hidden = !items.length || (node.dataset.slideList === 'items' && Boolean(slide.explanation));
+        }
+        menuItems[index].textContent = `${index + 1}. ${slide.title || slide.id}`;
+        const contact = section.querySelector('.stage-contact');
+        if (contact) contact.outerHTML = contactMarkup();
+        const citationText = section.querySelector('[data-citation-text]');
+        if (citationText) citationText.textContent = CONFIG.citation?.text || '';
+        const citationUrl = section.querySelector('[data-citation-url]');
+        if (citationUrl) {
+          citationUrl.textContent = CONFIG.citation?.url || '';
+          citationUrl.href = CONFIG.citation?.url || '';
+          citationUrl.hidden = !CONFIG.citation?.url;
+        }
+      }
+      slideCounter.setAttribute('aria-label', `Slide ${currentIndex + 1} of ${slides.length}: ${CONFIG.slides[currentIndex].title || CONFIG.title}. Choose a slide`);
+      renderTiming();
+      renderCanvas();
     }
 
     function showStageError(message) {
@@ -498,6 +541,8 @@
 
     const connection = LivePresentation.connect({
       role: 'presenter',
+      config: CONFIG,
+      onConfig: updateConfig,
       onState: nextState => {
         roomState = nextState;
         renderPollResults(); renderBoards(); renderRanking(); renderExams();

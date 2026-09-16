@@ -8,7 +8,7 @@ A reusable web presentation with three surfaces connected in real time:
 | --- | --- |
 | **Stage** (`/`) | Present slides, live or final poll results, approved messages, interactive exams, and a QR code for joining. |
 | **Audience** (`/participar/`) | Vote, post public messages, send private questions, explore exams on a phone, and optionally join the points ranking. |
-| **Control room (régie)** (`/regie/`) | Open, close, and reset polls; manage points; moderate messages and questions; remove uploaded studies; and reset the session. |
+| **Control room (régie)** (`/regie/`) | Manage the session, polls, points, messages, questions, and uploaded studies. Use **Settings** to edit the presentation. |
 
 A Cloudflare Worker serves the pages and handles presenter authentication. A
 SQLite-backed Durable Object named `Room` stores the session and synchronizes
@@ -44,8 +44,24 @@ phones, open the stage through a deployed or network-reachable address; a phone'
 
 ## Customize
 
-Edit [public/presentation.config.js](public/presentation.config.js). It contains
-the presentation identity, appearance, activities, timing, and slide sequence.
+Click **Settings** in the stage toolbar, or open the control room and select
+**Settings**. Locally, use `http://localhost:8787/regie/?k=change-this-key#settings`.
+The form edits the title and subtitle, presenter and contact links, citation,
+brand and colors, Canvas, total and per-slide timing, and slide text and lists.
+Changing the presentation title also updates cover titles that still match it.
+
+Click **Save settings** to apply changes to connected stage and audience pages
+without reloading them. The current slide, running timer, exam viewers, and
+audience drafts stay in place. Settings persist in the room's storage across
+page reloads and session resets. **Discard changes** returns to the latest saved
+values. **Restore defaults** fills the form with the template defaults; click
+**Save settings** to apply them. A stale draft cannot overwrite another control
+room's save.
+
+[public/presentation.config.js](public/presentation.config.js) still defines the
+template defaults, activity definitions, and slide order. Edit that file to add
+or reorder slides and configure polls, boards, and exams. Saved settings override
+the editable defaults without modifying this file.
 
 | Setting | What to change |
 | --- | --- |
@@ -85,8 +101,9 @@ diagnosis: {
 For timing, declared slide durations are added first. Slides without a duration,
 except covers, share `max(0, totalMinutes - declaredMinutes)` equally. An
 undeclared cover receives zero minutes. In the default 30-minute schedule, the
-declared slides use 24 minutes, so `poll-results`, `exam-1-continued`, `pause`,
-and `exam-2-results` each receive 1.5 minutes. The break title “Back in 5 minutes”
+declared slides use 26 minutes, including two minutes for `cloudflare-hosting`,
+so `poll-results`, `exam-1-continued`, `pause`, and `exam-2-results` each receive
+one minute. The break title “Back in 5 minutes”
 is slide text; set `timing.slides.pause` to `5` if the break should receive five
 minutes in the pace schedule.
 
@@ -126,7 +143,7 @@ Returning to an earlier slide does not reopen a locked poll; **Open** in the
 control room clears the lock. Moving to an unrelated slide does not close a
 previously opened poll.
 
-### The ten template slides
+### The eleven template slides
 
 The table describes the default configuration. If points are enabled, phones
 also show registration or the participant's current score on every slide.
@@ -135,7 +152,7 @@ Phone polls show answer controls; the result bars are on the stage.
 | # / Slide ID | Stage | Phones |
 | --- | --- | --- |
 | 1. `cover` | Presentation title, subtitle, topics, audience QR code, and connected audience count. | Private question form. |
-| 2. `poll-live` | Region poll with live results and approved messages from the `region` board. | Region vote and a public message form with a required author name. |
+| 2. `poll-live` | Continent poll with live results and approved messages from the `region` board. | Continent vote and a public message form with a required author name. |
 | 3. `poll-secret` | Age-range options with counts hidden, plus an explanation of voting and private questions. | Age-range vote and private question form. |
 | 4. `poll-results` | Final age-range results; entering closes and locks the `age` poll. | Private question form; the age poll is no longer offered. |
 | 5. `exam-1` | Abdominal CT viewer, live `exam-1` results, and approved discussion messages. | Abdominal CT viewer, diagnosis vote, and public discussion form with automatic publication by default. |
@@ -143,7 +160,8 @@ Phone polls show answer controls; the result bars are on the stage.
 | 7. `pause` | Break title and an invitation to ask the speaker questions. | Private question form. |
 | 8. `exam-2` | Brain MR viewer and `exam-2` options with counts hidden. | Brain MR viewer, diagnosis vote, public discussion form requiring approval by default, and private question form. |
 | 9. `exam-2-results` | Final `exam-2` results and approved discussion messages; entering closes and locks the poll. | Brain MR viewer and public discussion form; the diagnosis poll and private question form are absent. |
-| 10. `closing` | Thank-you message, citation, presenter contact, and ranking when points are enabled and participants exist. | Presenter contact and private question form, plus the personal points card when enabled. |
+| 10. `cloudflare-hosting` | A plain-language guide to creating a Cloudflare account, preparing the template, protecting presenter access, publishing, and sharing the audience link. | Private question form. |
+| 11. `closing` | Thank-you message, citation, presenter contact, and ranking when points are enabled and participants exist. | Presenter contact and private question form, plus the personal points card when enabled. |
 
 ## Stage toolbar
 
@@ -165,6 +183,8 @@ The bottom toolbar is available on every slide:
   iframe URL is assigned only on the first open. Close with Escape, the close
   button, or the dialog backdrop. Set the URL to a page the stage browser can
   reach and embed.
+- **Settings:** opens the control room's Settings section in a new tab using
+  the existing presenter session.
 - **Fullscreen:** enter or exit browser fullscreen.
 
 Keyboard shortcuts:
@@ -304,22 +324,50 @@ the new dataset's source, license, and required attribution in
 
 ## Deploy
 
-1. Set `name` in [wrangler.jsonc](wrangler.jsonc) to your Cloudflare Worker name.
-2. Remove the development `PRESENTER_KEY` entry from `vars` for production and
-   store your presenter key as a secret:
+Cloudflare puts the presentation online so the audience can join from their
+phones. It hosts the slides and runs the live voting and messaging together.
+
+1. Create a [Cloudflare account](https://dash.cloudflare.com/sign-up), install
+   the current LTS version of [Node.js](https://nodejs.org/), and download and
+   unzip this project from GitHub if you have not already done so.
+2. Open Terminal in the project folder. Run these commands one at a time to
+   install the required tools and connect your Cloudflare account. The second
+   command opens your browser so you can sign in and approve the connection:
+
+   ```bash
+   npm install
+   npx wrangler login
+   ```
+
+3. In [wrangler.jsonc](wrangler.jsonc), set `name` to a name for your presentation,
+   such as `my-presentation`. Use lowercase letters, numbers, and hyphens.
+   Remove the development `PRESENTER_KEY` entry from `vars`, leaving `"vars": {}`.
+   Then run the following command and enter a long, private password when asked.
+   Cloudflare stores it as a secret called `PRESENTER_KEY`. If asked to create
+   a Worker with your chosen name, accept:
 
    ```bash
    npx wrangler secret put PRESENTER_KEY
    ```
 
-3. Deploy the Worker, Durable Object, and static assets:
+4. Publish the presentation:
 
    ```bash
    npm run deploy
    ```
 
-Open the deployed stage or control room with `?k=YOUR_PRESENTER_KEY` to establish
-the presenter session. Share the public `/participar/` link with the audience.
+   This uploads the Worker, Durable Object, and static assets together. Follow
+   any prompts to choose your account or a `workers.dev` address. When it
+   finishes, the command prints the presentation's web address.
+
+5. Open that address with `/?k=YOUR_PRESENTER_KEY` for the stage, or
+   `/regie/?k=YOUR_PRESENTER_KEY` for the control room. Replace the placeholder
+   with your password (URL-encode it if it contains special characters).
+   Share only the address ending in `/participar/`, or the audience QR code,
+   with participants. Keep the password and presenter links private.
+
+These steps follow Cloudflare's [publishing guide](https://developers.cloudflare.com/workers/get-started/guide/)
+and [secret configuration guide](https://developers.cloudflare.com/workers/configuration/secrets/).
 
 ## Test
 

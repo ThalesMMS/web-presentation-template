@@ -32,19 +32,20 @@ export const CONFIG = {
   },
   timing: {
     totalMinutes: 30,
-    slides: { 'poll-live': 5, 'poll-secret': 3, 'exam-1': 8, 'exam-2': 6, closing: 2 }
+    slides: { 'poll-live': 5, 'poll-secret': 3, 'exam-1': 8, 'exam-2': 6, 'cloudflare-hosting': 2, closing: 2 }
   },
   polls: {
     region: {
-      question: 'Which region of Brazil are you from?',
+      question: 'Which continent are you from?',
       type: 'single',
       options: [
-        { id: 'north', label: 'North' },
-        { id: 'northeast', label: 'Northeast' },
-        { id: 'midwest', label: 'Midwest' },
-        { id: 'southeast', label: 'Southeast' },
-        { id: 'south', label: 'South' },
-        { id: 'outside-brazil', label: 'Outside Brazil' }
+        { id: 'africa', label: 'Africa' },
+        { id: 'antarctica', label: 'Antarctica' },
+        { id: 'asia', label: 'Asia' },
+        { id: 'europe', label: 'Europe' },
+        { id: 'north-america', label: 'North America' },
+        { id: 'oceania', label: 'Oceania' },
+        { id: 'south-america', label: 'South America' }
       ]
     },
     age: {
@@ -140,6 +141,16 @@ export const CONFIG = {
     {
       id: 'exam-2-results', type: 'content', eyebrow: 'Results', title: 'Case 2 — answers',
       poll: 'exam-2', pollResults: 'final', board: 'exam-2', audienceExam: 'brain-mr'
+    },
+    {
+      id: 'cloudflare-hosting', type: 'content', eyebrow: 'Hosting with Cloudflare', title: 'Put your presentation online',
+      items: [
+        'Create a Cloudflare account. Cloudflare keeps your presentation online and connects the audience’s phones.',
+        'Download this template from GitHub and install Node.js, the tool used to prepare it for publishing.',
+        'Follow the README’s Deploy steps to connect your account and create a private password for the presenter.',
+        'Publish with npm run deploy. Cloudflare uploads the slides and live activities, then gives you a web address.',
+        'Share that address ending in /participar/, or show the QR code. Keep your presenter password private.'
+      ]
     },
     {
       id: 'closing', type: 'closing', eyebrow: 'Thank you', title: 'Thank you!',
