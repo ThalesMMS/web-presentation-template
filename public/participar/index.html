@@ -127,7 +127,10 @@
 
   <script src="/assets/sync.js"></script>
   <script type="module">
-    import { CONFIG } from '/audience.config.js';
+    import { CONFIG as initialConfig } from '/audience.config.js';
+    import { applyBrand } from '/assets/settings.js';
+
+    let CONFIG = initialConfig;
 
     const element = id => document.getElementById(id);
     const cleanName = value => value.replace(/\s+/g, ' ').trim();
@@ -160,17 +163,6 @@
     let activeViewer = null;
     let examFocus;
 
-    pageTitle.textContent = CONFIG.title;
-    document.title = 'Participate · ' + CONFIG.title;
-    element('brandName').textContent = CONFIG.brand?.name || 'Live presentation';
-    const colorTokens = {
-      background: '--color-bg', surface: '--color-surface', text: '--color-text',
-      muted: '--color-text-muted', accent: '--color-accent', accentStrong: '--color-accent-strong'
-    };
-    for (const [name, token] of Object.entries(colorTokens)) {
-      if (CONFIG.brand?.colors?.[name]) document.documentElement.style.setProperty(token, CONFIG.brand.colors[name]);
-    }
-
     let savedAuthor = '';
     try {
       savedAuthor = (localStorage.getItem('presentation_author') || '').trim().slice(0, 60);
@@ -198,30 +190,41 @@
       }
     }
 
-    const presenter = CONFIG.presenter || {};
-    element('presenterName').textContent = presenter.name || '';
-    element('presenterRole').textContent = presenter.role || '';
-    element('presenterRole').hidden = !presenter.role;
-    for (const [key, label] of [['email', 'Email'], ['linkedin', 'LinkedIn'], ['github', 'GitHub']]) {
-      const value = presenter.contact?.[key];
-      if (!value) continue;
-      const link = document.createElement('a');
-      const isEmail = key === 'email';
-      if (!setSafeLink(link, isEmail ? 'mailto:' + value : value, isEmail ? ['mailto:'] : ['https:', 'http:'])) continue;
-      link.textContent = isEmail ? value : label;
-      if (!isEmail) {
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
+    function updateConfig(config) {
+      if (config.settingsRevision < CONFIG.settingsRevision) return;
+      CONFIG = config;
+      pageTitle.textContent = CONFIG.title;
+      document.title = 'Participate · ' + CONFIG.title;
+      element('brandName').textContent = CONFIG.brand?.name || 'Live presentation';
+      applyBrand(CONFIG);
+      element('contactLinks').replaceChildren();
+      element('citation').hidden = !CONFIG.citation?.text;
+      const presenter = CONFIG.presenter || {};
+      element('presenterName').textContent = presenter.name || '';
+      element('presenterRole').textContent = presenter.role || '';
+      element('presenterRole').hidden = !presenter.role;
+      for (const [key, label] of [['email', 'Email'], ['linkedin', 'LinkedIn'], ['github', 'GitHub']]) {
+        const value = presenter.contact?.[key];
+        if (!value) continue;
+        const link = document.createElement('a');
+        const isEmail = key === 'email';
+        if (!setSafeLink(link, isEmail ? 'mailto:' + value : value, isEmail ? ['mailto:'] : ['https:', 'http:'])) continue;
+        link.textContent = isEmail ? value : label;
+        if (!isEmail) {
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+        }
+        const item = document.createElement('li');
+        item.append(link);
+        element('contactLinks').append(item);
       }
-      const item = document.createElement('li');
-      item.append(link);
-      element('contactLinks').append(item);
+      if (CONFIG.citation?.text) {
+        element('citation').hidden = false;
+        element('citationText').textContent = CONFIG.citation.text;
+        element('citationLink').hidden = !setSafeLink(element('citationLink'), CONFIG.citation.url);
+      }
     }
-    if (CONFIG.citation?.text) {
-      element('citation').hidden = false;
-      element('citationText').textContent = CONFIG.citation.text;
-      element('citationLink').hidden = !setSafeLink(element('citationLink'), CONFIG.citation.url);
-    }
+    updateConfig(CONFIG);
 
     const requests = {
       register: { label: 'Join the ranking', busyLabel: 'Joining…' },
@@ -543,6 +546,8 @@
 
     const connection = LivePresentation.connect({
       role: 'audience',
+      config: CONFIG,
+      onConfig: updateConfig,
       onState: nextState => {
         roomState = nextState;
         render();

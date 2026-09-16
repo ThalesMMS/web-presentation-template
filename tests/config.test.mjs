@@ -4,9 +4,9 @@ import test from 'node:test';
 import { CONFIG } from '../public/presentation.config.js';
 import { audienceForSlide, paceSchedule, scoredPollKeys, slideById } from '../public/assets/slides.js';
 
-const SLIDE_IDS = ['cover', 'poll-live', 'poll-secret', 'poll-results', 'exam-1', 'exam-1-continued', 'pause', 'exam-2', 'exam-2-results', 'closing'];
+const SLIDE_IDS = ['cover', 'poll-live', 'poll-secret', 'poll-results', 'exam-1', 'exam-1-continued', 'pause', 'exam-2', 'exam-2-results', 'cloudflare-hosting', 'closing'];
 
-test('the template contains the ten contracted slides and four valid polls', () => {
+test('the template contains the eleven contracted slides and four valid polls', () => {
   assert.equal(CONFIG.title, 'Interactive presentation');
   assert.deepEqual(CONFIG.slides.map(slide => slide.id), SLIDE_IDS);
   assert.equal(new Set(SLIDE_IDS).size, CONFIG.slides.length);
@@ -34,7 +34,7 @@ test('the template contains the ten contracted slides and four valid polls', () 
     assert.ok(poll.options.every(option => option.label.trim()));
     if (poll.correct !== undefined) assert.ok(ids.includes(poll.correct));
   }
-  assert.deepEqual(CONFIG.polls.region.options.map(option => option.id), ['north', 'northeast', 'midwest', 'southeast', 'south', 'outside-brazil']);
+  assert.deepEqual(CONFIG.polls.region.options.map(option => option.id), ['africa', 'antarctica', 'asia', 'europe', 'north-america', 'oceania', 'south-america']);
   assert.deepEqual(CONFIG.polls.age.options.map(option => option.id), ['under-25', '25-34', '35-44', '45-54', '55-plus']);
   for (const key of ['exam-1', 'exam-2']) {
     assert.equal(CONFIG.polls[key].correct, 'neoplasia');
@@ -121,8 +121,8 @@ test('paceSchedule allocates remaining minutes equally to undeclared non-cover s
   assert.deepEqual(paceSchedule(CONFIG), {
     total: 30,
     expected: {
-      cover: 0, 'poll-live': 0, 'poll-secret': 5, 'poll-results': 8, 'exam-1': 9.5,
-      'exam-1-continued': 17.5, pause: 19, 'exam-2': 20.5, 'exam-2-results': 26.5, closing: 28
+      cover: 0, 'poll-live': 0, 'poll-secret': 5, 'poll-results': 8, 'exam-1': 9,
+      'exam-1-continued': 17, pause: 18, 'exam-2': 19, 'exam-2-results': 25, 'cloudflare-hosting': 26, closing: 28
     }
   });
 });

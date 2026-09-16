@@ -1,5 +1,6 @@
 import { CONFIG } from '../public/presentation.config.js';
 import { audienceForSlide, scoredPollKeys, slideById } from '../public/assets/slides.js';
+import { applySettings, settingsFromConfig, validateSettings } from '../public/assets/settings.js';
 
 const STATE_VERSION = 2;
 const POLL_KEYS = Object.keys(CONFIG.polls || {});
@@ -28,19 +29,13 @@ const PUBLIC_PATHS = new Set([
 ]);
 const PUBLIC_PREFIXES = ['/assets/', '/dicom-slide/'];
 
-const AUDIENCE_CONFIG = Object.freeze({
-  title: CONFIG.title,
-  brand: CONFIG.brand,
-  presenter: CONFIG.presenter,
-  citation: CONFIG.citation,
-  polls: Object.fromEntries(Object.entries(CONFIG.polls || {}).map(([key, { correct, ...poll }]) => [key, poll])),
-  boards: CONFIG.boards || {},
-  exams: CONFIG.exams || {}
-});
-const AUDIENCE_CONFIG_SOURCE = `export const CONFIG = ${JSON.stringify(AUDIENCE_CONFIG)
-  .replaceAll('<', '\\u003c')
-  .replaceAll('\u2028', '\\u2028')
-  .replaceAll('\u2029', '\\u2029')};\n`;
+function audienceConfig(config) {
+  return {
+    title: config.title, brand: config.brand, presenter: config.presenter, citation: config.citation,
+    polls: Object.fromEntries(Object.entries(config.polls || {}).map(([key, { correct, ...poll }]) => [key, poll])),
+    boards: config.boards || {}, exams: config.exams || {}, settingsRevision: config.settingsRevision
+  };
+}
 
 function isPublicPath(pathname) {
   return PUBLIC_PATHS.has(pathname) || PUBLIC_PREFIXES.some(prefix => pathname.startsWith(prefix));
@@ -400,7 +395,11 @@ export class Room {
   }
 
   async fetch(request) {
-    if (new URL(request.url).pathname.startsWith('/api/exams/')) return this.examsFetch(request);
+    const pathname = new URL(request.url).pathname;
+    if (pathname === '/api/settings' || pathname === '/presentation.config.js' || pathname === '/audience.config.js') {
+      return this.settingsFetch(request);
+    }
+    if (pathname.startsWith('/api/exams/')) return this.examsFetch(request);
     if (request.headers.get('Upgrade') !== 'websocket') {
       return new Response('WebSocket expected', { status: 426 });
     }
@@ -418,7 +417,8 @@ export class Room {
 
   async getState() {
     if (!this.cachedState) {
-      this.loadingState ||= this.state.storage.get('state').then(stored => {
+      this.loadingState ||= Promise.all([this.state.storage.get('state'), this.state.storage.get('settings')]).then(([stored, settings]) => {
+        this.settings = settings || { revision: 0 };
         this.cachedState = normalizeStoredState(stored);
         return this.cachedState;
       });
@@ -429,6 +429,38 @@ export class Room {
 
   async save() {
     await this.state.storage.put('state', this.cachedState);
+  }
+
+  async settingsFetch(request) {
+    const pathname = new URL(request.url).pathname;
+    if (pathname !== '/audience.config.js' && request.headers.get(PRESENTER_AUTH_HEADER) !== '1') return notFound();
+    if (!['GET', 'PUT'].includes(request.method) || (request.method === 'PUT' && pathname !== '/api/settings')) {
+      return apiError('Method not allowed', 405);
+    }
+    const state = await this.getState();
+    if (request.method === 'PUT') {
+      const body = await limitedText(request, 128 * 1024);
+      if (body === null) return apiError('Settings are too large', 413);
+      let value;
+      try { value = JSON.parse(body); } catch { return apiError('Invalid JSON'); }
+      let settings;
+      try { settings = validateSettings(value?.settings, CONFIG); } catch (error) { return apiError(error.message); }
+      const next = await this.state.storage.transaction(async transaction => {
+        const previous = await transaction.get('settings') || { revision: 0 };
+        if (value.revision !== previous.revision) return null;
+        const updated = { revision: previous.revision + 1, settings };
+        await transaction.put('settings', updated);
+        return updated;
+      });
+      if (!next) return apiError('Settings changed in another control room. Discard your changes to load the latest settings.', 409);
+      this.settings = next;
+      this.broadcast(state);
+    }
+    const config = applySettings(CONFIG, this.settings);
+    if (pathname === '/api/settings') return jsonResponse({ config, defaults: settingsFromConfig(CONFIG) });
+    return new Response(`export const CONFIG = ${scriptJson(pathname === '/audience.config.js' ? audienceConfig(config) : config)};\n`, {
+      headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' }
+    });
   }
 
   aggregate(state, control = false) {
@@ -450,7 +482,7 @@ export class Room {
       } catch { /* The connection closed while counting. */ }
     }
     const result = {
-      type: 'state', now: Date.now(), slide: state.slide,
+      type: 'state', now: Date.now(), slide: state.slide, settingsRevision: this.settings?.revision || 0,
       audience: audienceForSlide(slideById(CONFIG, state.slide), CONFIG), connected,
       points: { enabled: state.points.enabled }, polls, boards,
       exams: Object.fromEntries(EXAM_KEYS.map(key => [key, resolvedExam(state, key)])),
@@ -849,13 +881,16 @@ export default {
       return room.fetch(new Request(request, { headers }));
     }
 
-    if (url.pathname === '/audience.config.js') {
-      return new Response(AUDIENCE_CONFIG_SOURCE, {
-        headers: {
-          'Cache-Control': 'public, max-age=60',
-          'Content-Type': 'text/javascript; charset=utf-8'
-        }
-      });
+    if (['/api/settings', '/presentation.config.js', '/audience.config.js'].includes(url.pathname)) {
+      const headers = new Headers(request.headers);
+      headers.delete(PRESENTER_AUTH_HEADER);
+      if (url.pathname !== '/audience.config.js') {
+        if (!await hasValidSession(request, env.PRESENTER_KEY)) return notFound();
+        headers.set(PRESENTER_AUTH_HEADER, '1');
+      }
+      if (request.method === 'PUT' && (request.headers.get('Origin') !== url.origin
+        || !request.headers.get('Content-Type')?.startsWith('application/json'))) return apiError('Invalid settings request', 403);
+      return env.ROOM.get(env.ROOM.idFromName('main')).fetch(new Request(request, { headers }));
     }
 
     if (isPublicPath(url.pathname)) return env.ASSETS.fetch(request);
