@@ -1,4 +1,4 @@
-/* Cliente compartilhado de WebSocket e utilitário de QR code. */
+/* Shared WebSocket client and QR code utility. */
 (function () {
   'use strict';
 
@@ -16,7 +16,9 @@
   })();
 
   function connect(options) {
-    const { role, key = '', onState, onMine, onError, onHello, onQuestion, onReset } = options;
+    const { role, key = '', onState, onMine, onError, onHello, onQuestion, onMessage, onReset, onConfig } = options;
+    let config = options.config;
+    let messages = Promise.resolve();
     const importantMessages = new Map();
     const badge = document.querySelector('.connection');
     let socket;
@@ -52,12 +54,22 @@
         if (event.data === 'pong') return;
         let message;
         try { message = JSON.parse(event.data); } catch { return; }
-        if (message.type === 'state') onState?.(message);
-        else if (message.type === 'mine') onMine?.(message);
-        else if (message.type === 'error') onError?.(message.message);
-        else if (message.type === 'hello') onHello?.(message);
-        else if (message.type === 'question_received') onQuestion?.(message);
-        else if (message.type === 'reset_complete') onReset?.(message);
+        messages = messages.then(async () => {
+          if (message.type === 'state') {
+            if (config && message.settingsRevision > config.settingsRevision) {
+              const path = role === 'audience' ? '/audience.config.js' : '/presentation.config.js';
+              const updated = await import(`${path}?revision=${message.settingsRevision}`);
+              config = updated.CONFIG;
+              onConfig?.(config);
+            }
+            onState?.(message);
+          } else if (message.type === 'mine') onMine?.(message);
+          else if (message.type === 'error') onError?.(message.message);
+          else if (message.type === 'hello') onHello?.(message);
+          else if (message.type === 'question_received') onQuestion?.(message);
+          else if (message.type === 'message_received') onMessage?.(message);
+          else if (message.type === 'reset_complete') onReset?.(message);
+        }).catch(() => onError?.('Could not update the presentation. Check your connection and reload if it persists.'));
       });
       socket.addEventListener('close', () => {
         if (closed) return;

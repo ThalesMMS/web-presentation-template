@@ -1,0 +1,295 @@
+.audience-page [hidden] {
+  display: none !important;
+}
+
+.audience-shell {
+  width: min(100% - 1.5rem, 54rem);
+}
+
+.audience-panel {
+  min-width: 0;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.audience-header {
+  align-items: center;
+}
+
+.audience-header > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.audience-stack {
+  display: grid;
+  gap: var(--space-4);
+  margin-block-start: var(--space-5);
+}
+
+.audience-card {
+  min-width: 0;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  overflow-wrap: anywhere;
+}
+
+.audience-card h2 {
+  margin-block-end: var(--space-3);
+}
+
+.audience-error {
+  margin-block: var(--space-3) 0;
+  color: var(--color-danger);
+  overflow-wrap: anywhere;
+}
+
+.audience-error:empty {
+  margin: 0;
+}
+
+.audience-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.audience-form fieldset,
+.audience-poll-card fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.audience-form fieldset {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.audience-field {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.audience-field label {
+  font-weight: 750;
+}
+
+.audience-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.8rem 0.9rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: #172033;
+  font-size: 1rem;
+}
+
+.audience-field input[aria-invalid="true"] {
+  box-shadow: 0 0 0 0.18rem var(--color-danger);
+}
+
+.audience-form .button {
+  justify-self: start;
+}
+
+.audience-form fieldset:disabled input,
+.audience-form fieldset:disabled textarea {
+  opacity: 0.7;
+}
+
+.audience-points-card {
+  border-color: var(--color-accent);
+}
+
+.audience-points-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.audience-points-summary p {
+  margin-block-end: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.audience-points-summary + .audience-form {
+  margin-block-start: var(--space-3);
+}
+
+.audience-points-summary[hidden] + .audience-form {
+  margin-block-start: 0;
+}
+
+.audience-link-button {
+  min-height: 2.75rem;
+  padding: 0.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent);
+  cursor: pointer;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-position: under;
+}
+
+.audience-link-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.audience-poll-notice {
+  margin-block: var(--space-3) 0;
+}
+
+.audience-poll-card fieldset:disabled .poll-option {
+  cursor: not-allowed;
+  opacity: 0.65;
+  scale: 1;
+}
+
+.audience-poll-card fieldset:disabled .poll-option.is-selected {
+  opacity: 1;
+}
+
+.audience-exam-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-block-end: var(--space-3);
+}
+
+.audience-exam-heading h2 {
+  margin: 0;
+}
+
+.audience-exam-status {
+  margin-block: 0 var(--space-3);
+}
+
+.audience-exam-host {
+  width: 100%;
+  height: clamp(22rem, 66vh, 42rem);
+  height: clamp(22rem, 66dvh, 42rem);
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: #000;
+}
+
+.audience-exam-host dicom-study-viewer {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.audience-page.is-exam-expanded {
+  overflow: hidden;
+}
+
+.audience-page.is-exam-expanded > .skip-link,
+.audience-page.is-exam-expanded .audience-panel > :not(.audience-stack),
+.audience-page.is-exam-expanded .audience-stack > :not(.audience-exam-card) {
+  display: none !important;
+}
+
+.audience-exam-card.is-expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  padding:
+    max(0.5rem, env(safe-area-inset-top))
+    max(0.5rem, env(safe-area-inset-right))
+    max(0.5rem, env(safe-area-inset-bottom))
+    max(0.5rem, env(safe-area-inset-left));
+  border: 0;
+  border-radius: 0;
+  background: #000;
+}
+
+.audience-exam-card.is-expanded .audience-exam-heading {
+  flex: 0 0 auto;
+  margin-block-end: var(--space-1);
+}
+
+.audience-exam-card.is-expanded h2 {
+  flex: 1 1 8rem;
+  font-size: 1rem;
+}
+
+.audience-exam-card.is-expanded .audience-exam-host {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  border-radius: 0;
+}
+
+.audience-contact .audience-presenter-name {
+  margin-block-end: var(--space-1);
+  font-size: 1.1rem;
+  font-weight: 750;
+}
+
+.audience-contact-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.audience-contact-links li {
+  min-width: 0;
+}
+
+.audience-contact-links a {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+}
+
+.audience-citation {
+  margin-block-start: var(--space-4);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--color-line);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+.audience-citation h3 {
+  margin-block: 0 var(--space-1);
+  color: var(--color-text);
+  font-size: inherit;
+}
+
+.audience-citation p {
+  margin-block-end: var(--space-2);
+}
+
+.audience-waiting {
+  margin: 0;
+}
+
+@media (max-width: 38rem) {
+  .audience-form .button {
+    width: 100%;
+  }
+}

@@ -2,14 +2,14 @@
   "name": "presentation-template",
   "version": "1.0.0",
   "private": true,
-  "description": "Esqueleto de apresentação HTML com votação ao vivo.",
+  "description": "Interactive web presentation template with live polls, messages, audience exams, and a control room.",
   "type": "module",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "dev": "wrangler dev --port 8787",
+    "dev": "echo 'Presenter key: change-this-key' && echo 'Stage: http://localhost:8787/?k=change-this-key' && echo 'Control room: http://localhost:8787/regie/?k=change-this-key' && echo 'Audience: http://localhost:8787/participar/' && wrangler dev --port 8787",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {

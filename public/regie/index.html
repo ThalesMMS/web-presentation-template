@@ -1,157 +1,317 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Régie</title>
+  <title>Control room</title>
   <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/regie.css">
 </head>
-<body>
-  <a class="skip-link" href="#main">Ir para os controles</a>
-  <div class="connection" role="status">Conexão interrompida. Reconectando…</div>
-  <main class="app-shell" id="main">
-    <section class="panel" aria-labelledby="pageTitle">
-      <header class="panel-header">
+<body class="regie">
+  <a class="skip-link" href="#main">Skip to controls</a>
+  <div class="connection" role="status">Connection lost. Reconnecting…</div>
+  <main class="app-shell regie-shell" id="main" tabindex="-1">
+    <header class="panel regie-header">
+      <div class="panel-header">
         <div>
-          <p class="eyebrow">Painel de controle</p>
-          <h1 id="pageTitle">Régie</h1>
-          <p class="muted">Abra ou feche enquetes e acompanhe as perguntas da plateia.</p>
+          <p class="eyebrow" id="presentationTitle">Live presentation</p>
+          <h1>Control room</h1>
+          <p class="muted">Manage the session, audience messages, and presentation settings.</p>
         </div>
-        <span class="status" id="status" role="status">Conectando…</span>
-      </header>
-      <div id="warning" role="status"></div>
-
-      <section class="control-section" aria-labelledby="pollsTitle">
-        <h2 id="pollsTitle">Enquetes</h2>
-        <div class="control-grid" id="pollControls"></div>
-      </section>
-
-      <section class="control-section" aria-labelledby="questionsTitle">
-        <div class="question-section-header">
-          <h2 id="questionsTitle">Perguntas da plateia</h2>
-          <span class="muted" id="questionCount">0 pendentes</span>
-        </div>
-        <div class="question-list" id="questionList" aria-live="polite"></div>
-      </section>
-
-      <div class="reset-actions">
-        <button class="button danger" id="resetSession" type="button">Zerar todos os dados</button>
-        <span id="resetFeedback" role="status"></span>
+        <span class="status" id="status" role="status">Connecting…</span>
       </div>
+      <p class="regie-current-slide"><span class="muted">Current slide</span> <strong id="currentSlide">Waiting for state…</strong></p>
+      <div id="warning" role="status"><div class="key-warning">Validating the control session…</div></div>
+      <nav class="regie-navigation" aria-label="Control room sections">
+        <a class="button" id="sessionTab" href="#session" aria-current="page">Session</a>
+        <a class="button secondary" id="settingsTab" href="#settings">Settings</a>
+        <a class="button secondary regie-stage-link" href="/" target="_blank" rel="noopener noreferrer">Open presentation</a>
+      </nav>
+    </header>
+
+    <p class="regie-feedback" id="feedback" role="status" aria-atomic="true"></p>
+
+    <section id="settingsPanel" aria-labelledby="settingsTitle" hidden>
+      <h2 id="settingsTitle">Settings</h2>
+      <p class="muted">Save changes to update the presentation and audience. Settings are kept when you close this page or reset the session.</p>
+      <form id="settingsForm">
+        <fieldset class="settings-grid" id="settingsFields" disabled aria-label="Presentation settings"></fieldset>
+        <div class="panel settings-actions">
+          <p class="regie-feedback" id="settingsFeedback" role="status" aria-atomic="true"></p>
+          <div class="regie-navigation">
+            <button class="button" id="saveSettings" type="submit" disabled>Save settings</button>
+            <button class="button secondary" id="discardSettings" type="button" disabled>Discard changes</button>
+            <button class="button secondary" id="defaultSettings" type="button" disabled>Restore defaults</button>
+          </div>
+        </div>
+      </form>
     </section>
+
+    <div class="regie-grid" id="sessionPanel">
+      <section class="panel regie-section" aria-labelledby="sessionTitle">
+        <h2 id="sessionTitle">Session</h2>
+        <div class="regie-setting">
+          <label class="regie-toggle" for="pointsToggle">
+            <input id="pointsToggle" type="checkbox" role="switch" disabled>
+            <span class="regie-toggle-track" aria-hidden="true"></span>
+            <span>Points system</span>
+          </label>
+          <span class="regie-badge" id="pointsStatus">Off</span>
+        </div>
+        <p class="regie-meta" id="participantCount">Waiting for participants…</p>
+        <h3>Ranking preview <span class="muted regie-caption">Top 10</span></h3>
+        <div id="ranking"><p class="regie-empty">Waiting for state…</p></div>
+      </section>
+
+      <section class="panel regie-section" aria-labelledby="pollsTitle">
+        <h2 id="pollsTitle">Polls</h2>
+        <div class="regie-list" id="pollControls"></div>
+        <div class="regie-section-actions">
+          <button class="button danger" id="resetAllPolls" type="button" disabled>Reset all polls</button>
+        </div>
+      </section>
+
+      <section class="panel regie-section" aria-labelledby="boardsTitle">
+        <h2 id="boardsTitle">Boards</h2>
+        <p class="muted">Approved messages appear on the public feed.</p>
+        <div class="regie-list" id="boardControls"></div>
+      </section>
+
+      <section class="panel regie-section" aria-labelledby="questionsTitle">
+        <div class="regie-section-heading">
+          <h2 id="questionsTitle">Private questions</h2>
+          <span class="regie-meta" id="questionCount">Waiting for state…</span>
+        </div>
+        <p class="muted">These questions are visible only in the control room.</p>
+        <div class="regie-list" id="questionList"></div>
+      </section>
+
+      <section class="panel regie-section" aria-labelledby="examsTitle">
+        <h2 id="examsTitle">Exams</h2>
+        <div class="regie-list" id="examControls"></div>
+      </section>
+
+      <section class="panel regie-section regie-danger-zone" aria-labelledby="dangerTitle">
+        <h2 id="dangerTitle">Danger zone</h2>
+        <p class="muted">A full reset erases all votes, board messages, private questions, registered participants, device registrations, and uploaded exams. Points and moderation return to their configured defaults. The current slide is kept.</p>
+        <button class="button danger" id="resetSession" type="button" disabled>Full reset</button>
+      </section>
+    </div>
   </main>
 
   <script src="/assets/sync.js"></script>
   <script type="module">
-    import { CONFIG } from '/presentation.config.js';
+    import { CONFIG as initialConfig } from '/presentation.config.js';
+    import { applyBrand } from '/assets/settings.js';
+    import { mountSettings } from '/assets/regie-settings.js';
 
-    const status = document.querySelector('#status');
-    const warning = document.querySelector('#warning');
-    const pollControls = document.querySelector('#pollControls');
-    const questionList = document.querySelector('#questionList');
-    const questionCount = document.querySelector('#questionCount');
-    const resetSession = document.querySelector('#resetSession');
-    const resetFeedback = document.querySelector('#resetFeedback');
+    let CONFIG = initialConfig;
+
+    const elements = Object.fromEntries([
+      'presentationTitle', 'status', 'currentSlide', 'warning', 'feedback',
+      'pointsToggle', 'pointsStatus', 'participantCount', 'ranking',
+      'pollControls', 'resetAllPolls', 'boardControls', 'questionCount',
+      'questionList', 'examControls', 'resetSession'
+    ].map(id => [id, document.getElementById(id)]));
+    const rendered = new WeakMap();
     let roomState;
     let authorized = false;
     let authorizationChecked = false;
 
-    document.title = `Régie · ${CONFIG.title}`;
-    const colorTokens = {
-      background: '--color-bg', surface: '--color-surface', text: '--color-text',
-      muted: '--color-text-muted', accent: '--color-accent', accentStrong: '--color-accent-strong'
-    };
-    for (const [name, token] of Object.entries(colorTokens)) {
-      if (CONFIG.brand?.colors?.[name]) document.documentElement.style.setProperty(token, CONFIG.brand.colors[name]);
+    const settingsEditor = mountSettings(CONFIG, updateConfig);
+    function updateConfig(config) {
+      if (config.settingsRevision < CONFIG.settingsRevision) return;
+      CONFIG = config;
+      document.title = `Control room · ${CONFIG.title}`;
+      elements.presentationTitle.textContent = CONFIG.title;
+      applyBrand(CONFIG);
+      settingsEditor.update(config);
+      render();
     }
+    function showSection() {
+      const settings = location.hash === '#settings';
+      document.getElementById('settingsPanel').hidden = !settings;
+      document.getElementById('sessionPanel').hidden = settings;
+      for (const [id, active] of [['settingsTab', settings], ['sessionTab', !settings]]) {
+        const link = document.getElementById(id);
+        link.classList.toggle('secondary', !active);
+        if (active) link.setAttribute('aria-current', 'page');
+        else link.removeAttribute('aria-current');
+      }
+    }
+    addEventListener('hashchange', showSection);
+    showSection();
 
-    const escapeHtml = value => {
-      const node = document.createElement('div');
-      node.textContent = value ?? '';
-      return node.innerHTML;
-    };
+    const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
+    const canControl = () => authorized && Boolean(roomState);
+    const disabled = () => canControl() ? '' : 'disabled';
+
+    function renderHtml(container, html) {
+      if (rendered.get(container) === html) return;
+      const active = document.activeElement;
+      const focusId = container.contains(active) ? active.id : null;
+      container.innerHTML = html;
+      rendered.set(container, html);
+      if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
+    }
 
     function formatTime(timestamp) {
       const date = new Date(Number(timestamp));
-      if (Number.isNaN(date.getTime())) return '';
-      return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      if (!timestamp || Number.isNaN(date.getTime())) return '';
+      return `<time datetime="${date.toISOString()}" title="${escapeHtml(date.toLocaleString('en', { dateStyle: 'medium', timeStyle: 'short' }))}">${escapeHtml(date.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }))}</time>`;
+    }
+
+    function formatBytes(bytes) {
+      if (!Number.isFinite(bytes) || bytes < 0) return 'Size unavailable';
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+      if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+      return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+    }
+
+    function showFeedback(text, isError = false) {
+      elements.feedback.textContent = text;
+      elements.feedback.classList.toggle('is-error', isError);
+    }
+
+    function sendControl(message) {
+      if (!canControl()) {
+        showFeedback('An authorized control session and current room state are required.', true);
+        return;
+      }
+      if (!connection.send(message)) {
+        showFeedback('No connection. Please try again after reconnecting.', true);
+        return;
+      }
+      showFeedback(message.type.startsWith('reset_') ? 'Reset requested…' : 'Control request sent.');
+    }
+
+    function renderSession() {
+      const pointsEnabled = roomState?.points?.enabled ?? CONFIG.features?.points?.enabled ?? false;
+      elements.pointsToggle.checked = pointsEnabled;
+      elements.pointsToggle.disabled = !canControl();
+      elements.pointsStatus.textContent = pointsEnabled ? 'On' : 'Off';
+      elements.pointsStatus.className = `regie-badge${pointsEnabled ? ' is-approved' : ''}`;
+      const count = roomState?.participants ?? 0;
+      elements.participantCount.textContent = roomState
+        ? `${count} registered ${count === 1 ? 'participant' : 'participants'}`
+        : 'Waiting for participants…';
+      const ranking = (roomState?.ranking ?? []).slice(0, 10);
+      const emptyText = !roomState ? 'Waiting for state…'
+        : !pointsEnabled ? 'Turn on the points system to show the ranking.'
+        : 'No registered participants yet.';
+      renderHtml(elements.ranking, !pointsEnabled || !ranking.length
+        ? `<p class="regie-empty">${emptyText}</p>`
+        : `<table class="regie-ranking">
+            <caption>Registered participants ranked by correct answers</caption>
+            <thead><tr><th scope="col">Rank</th><th scope="col">Name</th><th scope="col">Correct</th></tr></thead>
+            <tbody>${ranking.map(entry => `<tr><td>${escapeHtml(entry.rank)}</td><th scope="row">${escapeHtml(entry.name)}</th><td>${escapeHtml(entry.score)} / ${escapeHtml(roomState.scoredPolls)}</td></tr>`).join('')}</tbody>
+          </table>`);
     }
 
     function renderPolls() {
-      pollControls.innerHTML = Object.entries(CONFIG.polls).map(([id, config]) => {
+      renderHtml(elements.pollControls, Object.entries(CONFIG.polls).map(([id, config]) => {
         const poll = roomState?.polls?.[id];
-        const open = Boolean(poll?.open);
-        const count = poll?.responses || 0;
-        return `<article class="control-row">
-          <div><strong>${escapeHtml(config.question)}</strong><p class="control-meta">${open ? 'Aberta' : 'Fechada'} · ${count} ${count === 1 ? 'resposta' : 'respostas'}</p></div>
-          <div class="control-actions">
-            <button class="button" type="button" data-poll-action="open" data-poll="${escapeHtml(id)}" ${authorized ? '' : 'disabled'}>Abrir</button>
-            <button class="button secondary" type="button" data-poll-action="close" data-poll="${escapeHtml(id)}" ${authorized ? '' : 'disabled'}>Fechar</button>
-            <button class="button secondary" type="button" data-poll-action="reset" data-poll="${escapeHtml(id)}" ${authorized ? '' : 'disabled'}>Zerar</button>
+        const count = poll?.responses ?? 0;
+        const correct = config.options.find(option => option.id === config.correct);
+        return `<article class="regie-card" aria-labelledby="poll-title-${escapeHtml(id)}">
+          <h3 id="poll-title-${escapeHtml(id)}">${escapeHtml(config.question)}</h3>
+          <div class="regie-meta-row">
+            <span class="regie-badge${poll?.open ? ' is-approved' : ''}">${poll ? (poll.open ? 'Open' : 'Closed') : 'Waiting for state…'}</span>
+            <span class="regie-meta">${count} ${count === 1 ? 'response' : 'responses'}</span>
+            ${config.correct !== undefined ? `<span class="regie-badge is-scored">Scored · correct: ${escapeHtml(correct?.label ?? config.correct)}</span>` : ''}
+          </div>
+          <div class="regie-actions">
+            <button class="button" id="poll-open-${escapeHtml(id)}" type="button" data-poll-action="open" data-poll="${escapeHtml(id)}" ${disabled()}>Open</button>
+            <button class="button secondary" id="poll-close-${escapeHtml(id)}" type="button" data-poll-action="close" data-poll="${escapeHtml(id)}" ${disabled()}>Close</button>
+            <button class="button danger" id="poll-reset-${escapeHtml(id)}" type="button" data-poll-action="reset" data-poll="${escapeHtml(id)}" ${disabled()}>Reset</button>
           </div>
         </article>`;
-      }).join('');
-      pollControls.querySelectorAll('[data-poll-action]').forEach(button => {
-        button.addEventListener('click', () => {
-          const id = button.dataset.poll;
-          const action = button.dataset.pollAction;
-          if (action === 'reset') {
-            if (!confirm(`Zerar as respostas de “${CONFIG.polls[id].question}”?`)) return;
-            connection.send({ type: 'reset_poll', poll: id });
-          } else {
-            connection.send({ type: 'set_poll', poll: id, open: action === 'open' });
-          }
-        });
-      });
+      }).join('') || '<p class="regie-empty">No polls configured.</p>');
+      elements.resetAllPolls.disabled = !canControl() || !Object.keys(CONFIG.polls).length;
+    }
+
+    function renderBoards() {
+      renderHtml(elements.boardControls, Object.entries(CONFIG.boards ?? {}).map(([id, config]) => {
+        const board = roomState?.boards?.[id];
+        const automatic = (board?.moderation ?? config.moderation) === 'auto';
+        const messages = board?.messages ?? [];
+        const pending = messages.filter(message => message.status === 'pending').length;
+        return `<article class="regie-card regie-board" aria-labelledby="board-title-${escapeHtml(id)}">
+          <h3 id="board-title-${escapeHtml(id)}">${escapeHtml(config.title)} <span class="regie-caption muted">${escapeHtml(id)}</span></h3>
+          <label class="regie-toggle" for="board-mode-${escapeHtml(id)}">
+            <input id="board-mode-${escapeHtml(id)}" type="checkbox" role="switch" data-board-mode="${escapeHtml(id)}" aria-label="Publish automatically for ${escapeHtml(config.title)} (${escapeHtml(id)})" ${automatic ? 'checked' : ''} ${disabled()}>
+            <span class="regie-toggle-track" aria-hidden="true"></span>
+            <span><span class="regie-toggle-option${automatic ? ' is-active' : ''}">Publish automatically</span><span class="regie-toggle-option${automatic ? '' : ' is-active'}">Approve each message</span></span>
+          </label>
+          <p class="regie-meta">${messages.length} ${messages.length === 1 ? 'message' : 'messages'} · ${pending} pending</p>
+          <div class="regie-message-list">${messages.map(message => {
+            const messageStatus = ['pending', 'approved', 'rejected'].includes(message.status) ? message.status : 'pending';
+            const label = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected' }[messageStatus];
+            return `<article class="regie-message" data-board="${escapeHtml(id)}" data-message="${escapeHtml(message.id)}">
+              <div class="regie-meta-row"><strong>${escapeHtml(message.author)}</strong><span class="regie-badge is-${messageStatus}">${label}</span>${formatTime(message.createdAt)}</div>
+              <p class="regie-message-text">${escapeHtml(message.text)}</p>
+              <div class="regie-actions">
+                <button class="button secondary" id="message-approve-${escapeHtml(id)}-${escapeHtml(message.id)}" type="button" data-message-action="approve" ${!canControl() || messageStatus === 'approved' ? 'disabled' : ''}>Approve</button>
+                <button class="button secondary" id="message-reject-${escapeHtml(id)}-${escapeHtml(message.id)}" type="button" data-message-action="reject" ${!canControl() || messageStatus === 'rejected' ? 'disabled' : ''}>Reject</button>
+                <button class="button danger" id="message-delete-${escapeHtml(id)}-${escapeHtml(message.id)}" type="button" data-message-action="delete" ${disabled()}>Delete</button>
+              </div>
+            </article>`;
+          }).join('') || `<p class="regie-empty">${roomState ? 'No messages yet.' : 'Waiting for state…'}</p>`}</div>
+        </article>`;
+      }).join('') || '<p class="regie-empty">No boards configured.</p>');
     }
 
     function renderQuestions() {
-      const questions = [...(roomState?.questions || [])].sort((left, right) => (
-        Number(left.resolved) - Number(right.resolved)
-        || Number(right.createdAt) - Number(left.createdAt)
-      ));
+      const questions = roomState?.questions ?? [];
       const pending = questions.filter(question => !question.resolved).length;
-      questionCount.textContent = `${pending} ${pending === 1 ? 'pendente' : 'pendentes'}`;
-      if (!questions.length) {
-        questionList.innerHTML = '<div class="empty-state">Nenhuma pergunta enviada ainda.</div>';
-        return;
-      }
-      questionList.innerHTML = questions.map(question => {
-        const time = formatTime(question.createdAt);
-        const nextAction = question.resolved ? 'reopen' : 'resolve';
-        return `<article class="question-item ${question.resolved ? 'is-resolved' : ''}" data-question="${question.id}">
-          <div><p>${escapeHtml(question.text)}</p><p class="question-meta">${question.resolved ? 'Respondida' : 'Pendente'}${time ? ` · enviada às ${time}` : ''}</p></div>
-          <div class="question-actions">
-            <button class="button secondary" type="button" data-question-action="${nextAction}">${question.resolved ? 'Reabrir' : 'Marcar como respondida'}</button>
-            <button class="button danger" type="button" data-question-action="delete">Excluir</button>
-          </div>
+      elements.questionCount.textContent = roomState ? `${pending} unanswered` : 'Waiting for state…';
+      renderHtml(elements.questionList, questions.map(question => `<article class="regie-card${question.resolved ? ' is-resolved' : ''}" data-question="${escapeHtml(question.id)}">
+        <div class="regie-meta-row"><strong>${escapeHtml(question.author?.trim() || 'Anonymous')}</strong><span class="regie-badge ${question.resolved ? 'is-approved' : 'is-pending'}">${question.resolved ? 'Answered' : 'Unanswered'}</span>${formatTime(question.createdAt)}</div>
+        <p class="regie-message-text">${escapeHtml(question.text)}</p>
+        <div class="regie-actions">
+          <button class="button secondary" id="question-toggle-${escapeHtml(question.id)}" type="button" data-question-action="${question.resolved ? 'reopen' : 'resolve'}" ${disabled()}>${question.resolved ? 'Reopen' : 'Mark answered'}</button>
+          <button class="button danger" id="question-delete-${escapeHtml(question.id)}" type="button" data-question-action="delete" ${disabled()}>Delete</button>
+        </div>
+      </article>`).join('') || `<p class="regie-empty">${roomState ? 'No private questions yet.' : 'Waiting for state…'}</p>`);
+    }
+
+    function renderExams() {
+      renderHtml(elements.examControls, Object.entries(CONFIG.exams ?? {}).map(([id, config]) => {
+        const override = roomState?.examOverrides?.[id];
+        return `<article class="regie-card" aria-labelledby="exam-title-${escapeHtml(id)}">
+          <h3 id="exam-title-${escapeHtml(id)}">${escapeHtml(config.title)} <span class="regie-caption muted">${escapeHtml(id)}</span></h3>
+          <p class="regie-meta">${!roomState ? 'Waiting for state…' : override ? `Using uploaded study ${escapeHtml(override.title)}` : 'Using the configured study'}</p>
+          ${override ? `<p class="regie-meta">${escapeHtml(override.seriesCount)} series · ${formatBytes(override.bytes)} · Uploaded ${formatTime(override.createdAt)}</p>
+          <div class="regie-actions"><button class="button danger" id="exam-remove-${escapeHtml(id)}" type="button" data-remove-exam="${escapeHtml(id)}" ${disabled()}>Remove uploaded study</button></div>` : ''}
         </article>`;
-      }).join('');
-      questionList.querySelectorAll('[data-question-action]').forEach(button => {
-        button.addEventListener('click', () => {
-          const id = Number(button.closest('[data-question]')?.dataset.question);
-          const action = button.dataset.questionAction;
-          if (!Number.isFinite(id)) return;
-          if (action === 'delete' && !confirm('Excluir esta pergunta?')) return;
-          connection.send({ type: 'moderate_question', id, action });
-        });
-      });
+      }).join('') || '<p class="regie-empty">No exams configured.</p>');
     }
 
     function render() {
-      status.textContent = roomState
-        ? `${roomState.connected || 0} ${roomState.connected === 1 ? 'pessoa conectada' : 'pessoas conectadas'}`
-        : 'Conectando…';
-      warning.innerHTML = authorized
-        ? ''
-        : `<div class="key-warning">${authorizationChecked ? 'Sessão sem autorização. Abra esta página novamente com a chave correta.' : 'Validando a sessão de controle…'}</div>`;
-      resetSession.disabled = !authorized;
+      const connected = roomState?.connected ?? 0;
+      elements.status.textContent = roomState ? `${connected} connected` : 'Connecting…';
+      const slideIndex = CONFIG.slides.findIndex(slide => slide.id === roomState?.slide);
+      elements.currentSlide.textContent = !roomState ? 'Waiting for state…'
+        : slideIndex < 0 ? 'Unknown slide'
+        : `${slideIndex + 1}. ${CONFIG.slides[slideIndex].title || CONFIG.slides[slideIndex].id}`;
+      renderHtml(elements.warning, authorized ? '' : `<div class="key-warning">${authorizationChecked
+        ? 'This session is not authorized. Reopen this page with the correct key.'
+        : 'Validating the control session…'}</div>`);
+      elements.resetSession.disabled = !canControl();
+      renderSession();
       renderPolls();
+      renderBoards();
       renderQuestions();
+      renderExams();
     }
 
     const connection = LivePresentation.connect({
       role: 'control',
+      config: CONFIG,
+      onConfig: updateConfig,
       onState: nextState => {
         roomState = nextState;
         render();
@@ -159,33 +319,92 @@
       onHello: message => {
         authorizationChecked = true;
         authorized = Boolean(message.authorized);
+        settingsEditor.authorize(authorized);
         render();
       },
       onReset: message => {
-        resetSession.disabled = false;
-        resetSession.textContent = 'Zerar todos os dados';
-        resetFeedback.textContent = message.scope === 'poll' ? 'Enquete zerada.' : 'Todos os dados foram zerados.';
+        if (message.scope === 'poll') {
+          const question = CONFIG.polls[message.poll]?.question;
+          showFeedback(question ? `Poll reset: “${question}”. Votes cleared.` : 'Poll reset. Votes cleared.');
+        } else if (message.scope === 'polls') {
+          showFeedback('All polls reset. Votes cleared.');
+        } else if (message.scope === 'session') {
+          showFeedback('Full reset complete. Votes, messages, questions, registered participants, device registrations, and uploaded exams were erased. The current slide was kept.');
+        }
       },
-      onError: message => {
-        resetSession.disabled = false;
-        resetSession.textContent = 'Zerar todos os dados';
-        resetFeedback.textContent = message || 'Não foi possível concluir a ação.';
+      onError: message => showFeedback(message || 'Could not complete the action.', true)
+    });
+
+    elements.pointsToggle.addEventListener('change', event => {
+      const enabled = event.target.checked;
+      event.target.checked = roomState?.points?.enabled ?? CONFIG.features?.points?.enabled ?? false;
+      sendControl({ type: 'set_points', enabled });
+    });
+
+    elements.pollControls.addEventListener('click', event => {
+      const button = event.target.closest('[data-poll-action]');
+      if (!button || button.disabled || !canControl()) return;
+      const poll = button.dataset.poll;
+      if (button.dataset.pollAction === 'reset') {
+        if (!confirm(`Reset all votes for “${CONFIG.polls[poll].question}”? This also updates participant scores. This cannot be undone.`)) return;
+        sendControl({ type: 'reset_poll', poll });
+      } else {
+        sendControl({ type: 'set_poll', poll, open: button.dataset.pollAction === 'open' });
       }
     });
 
-    resetSession.addEventListener('click', () => {
-      if (!confirm('Apagar todos os votos e perguntas desta sala?')) return;
-      resetSession.disabled = true;
-      resetSession.textContent = 'Zerando…';
-      resetFeedback.textContent = '';
-      if (!connection.send({ type: 'reset_session' })) {
-        resetSession.disabled = false;
-        resetSession.textContent = 'Zerar todos os dados';
-        resetFeedback.textContent = 'Sem conexão. Tente novamente.';
-      }
+    elements.resetAllPolls.addEventListener('click', () => {
+      if (!canControl() || !confirm('Reset all polls? All votes will be erased and participant scores will be recalculated. This cannot be undone.')) return;
+      sendControl({ type: 'reset_all_polls' });
     });
 
-    render();
+    elements.boardControls.addEventListener('change', event => {
+      const toggle = event.target.closest('[data-board-mode]');
+      if (!toggle) return;
+      const board = toggle.dataset.boardMode;
+      const moderation = toggle.checked ? 'auto' : 'manual';
+      toggle.checked = (roomState?.boards?.[board]?.moderation ?? CONFIG.boards[board].moderation) === 'auto';
+      sendControl({ type: 'set_board_mode', board, moderation });
+    });
+
+    elements.boardControls.addEventListener('click', event => {
+      const button = event.target.closest('[data-message-action]');
+      if (!button || button.disabled || !canControl()) return;
+      const row = button.closest('[data-message]');
+      const board = row.dataset.board;
+      const message = roomState.boards?.[board]?.messages.find(item => String(item.id) === row.dataset.message);
+      if (!message) return;
+      const action = button.dataset.messageAction;
+      if (action === 'delete' && !confirm(`Delete this message from “${CONFIG.boards[board].title}”? This cannot be undone.`)) return;
+      sendControl({ type: 'moderate_message', board, id: message.id, action });
+    });
+
+    elements.questionList.addEventListener('click', event => {
+      const button = event.target.closest('[data-question-action]');
+      if (!button || button.disabled || !canControl()) return;
+      const row = button.closest('[data-question]');
+      const question = roomState.questions?.find(item => String(item.id) === row.dataset.question);
+      if (!question) return;
+      const action = button.dataset.questionAction;
+      if (action === 'delete' && !confirm('Delete this private question? This cannot be undone.')) return;
+      sendControl({ type: 'moderate_question', id: question.id, action });
+    });
+
+    elements.examControls.addEventListener('click', event => {
+      const button = event.target.closest('[data-remove-exam]');
+      if (!button || button.disabled || !canControl()) return;
+      const exam = button.dataset.removeExam;
+      const override = roomState.examOverrides?.[exam];
+      if (!override || !confirm(`Remove uploaded study “${override.title}” from “${CONFIG.exams[exam].title}”? Its uploaded data will be deleted and the configured study will be restored. This cannot be undone.`)) return;
+      sendControl({ type: 'remove_exam_override', exam });
+    });
+
+    elements.resetSession.addEventListener('click', () => {
+      if (!canControl() || !confirm('Full reset will permanently erase:\n\n• All votes\n• All board messages\n• All private questions\n• All registered participants and device registrations\n• All uploaded exams\n\nPoints and board moderation return to their configured defaults. The current slide is kept.\n\nContinue with the full reset?')) return;
+      sendControl({ type: 'reset_session' });
+    });
+
+    updateConfig(CONFIG);
   </script>
 </body>
 </html>

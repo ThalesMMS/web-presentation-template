@@ -1,157 +1,611 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Participar</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Participate</title>
   <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/audience.css">
 </head>
-<body>
-  <a class="skip-link" href="#main">Ir para a atividade</a>
-  <div class="connection" role="status">Conexão interrompida. Reconectando…</div>
-  <main class="app-shell" id="main">
-    <section class="panel" aria-labelledby="pageTitle">
-      <header class="panel-header">
+<body class="audience-page">
+  <a class="skip-link" href="#main">Skip to the activity</a>
+  <div class="connection" role="status" aria-live="polite">Connection lost. Reconnecting…</div>
+  <main class="app-shell audience-shell" id="main" tabindex="-1">
+    <div class="panel audience-panel">
+      <header class="panel-header audience-header">
         <div>
-          <p class="eyebrow">Participe pelo celular</p>
-          <h1 id="pageTitle">Apresentação</h1>
+          <p class="eyebrow" id="brandName">Live presentation</p>
+          <h1 id="pageTitle" tabindex="-1">Interactive presentation</h1>
         </div>
-        <span class="status" id="status" role="status">Conectando…</span>
+        <span class="status" id="connectedCount" role="status" aria-live="polite">Connecting…</span>
       </header>
+      <p class="audience-error" id="actionFeedback" role="alert" aria-atomic="true"></p>
+      <noscript><p class="waiting">Enable JavaScript to join the live activities.</p></noscript>
 
-      <section class="activity" id="activity" aria-live="polite">
-        <div class="waiting">A atividade aparecerá aqui quando for aberta.</div>
-      </section>
+      <div class="audience-stack">
+        <section class="audience-card audience-points-card" id="pointsCard" aria-labelledby="pointsTitle" hidden>
+          <h2 id="pointsTitle">Join the ranking</h2>
+          <div class="audience-points-summary" id="pointsSummary" hidden>
+            <p id="pointsScore" role="status" aria-live="polite" aria-atomic="true"></p>
+            <button class="audience-link-button" id="changeParticipant" type="button" aria-controls="registerForm" aria-expanded="false">Change</button>
+          </div>
+          <form class="audience-form" id="registerForm" novalidate>
+            <fieldset id="registerFields" aria-describedby="registerFeedback">
+              <legend class="audience-visually-hidden">Ranking registration</legend>
+              <div class="audience-field">
+                <label for="participantName">Your name</label>
+                <input id="participantName" name="name" type="text" autocomplete="name" maxlength="60" required>
+              </div>
+              <div class="audience-field">
+                <label for="participantEmail">Email</label>
+                <input id="participantEmail" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" maxlength="120" required>
+              </div>
+              <button class="button" id="registerSubmit" type="submit">Join the ranking</button>
+            </fieldset>
+          </form>
+          <p class="form-feedback" id="registerFeedback" role="status" aria-live="polite" aria-atomic="true"></p>
+        </section>
 
-      <form class="question-form" id="questionForm" novalidate>
-        <label for="questionText">Envie uma pergunta ao apresentador</label>
-        <div class="question-row">
-          <textarea id="questionText" name="question" maxlength="400" rows="3" aria-describedby="questionFeedback" placeholder="Escreva sua pergunta"></textarea>
-          <button class="button" id="questionSubmit" type="submit">Enviar pergunta</button>
-        </div>
-        <p class="form-feedback" id="questionFeedback" role="status"></p>
-      </form>
-    </section>
+        <section class="audience-card audience-exam-card" id="examCard" aria-labelledby="examTitle" tabindex="-1" hidden>
+          <div class="audience-exam-heading">
+            <h2 id="examTitle">Explore the exam</h2>
+            <button class="button secondary" id="restoreExam" type="button" hidden>Restore view</button>
+          </div>
+          <p class="form-feedback audience-exam-status" id="examStatus" role="status" aria-live="polite" aria-atomic="true"></p>
+          <div class="audience-exam-host" id="examHost"></div>
+        </section>
+
+        <section class="audience-card audience-poll-card" id="pollCard" aria-labelledby="pollTitle" hidden>
+          <form id="pollForm">
+            <fieldset id="pollFields" aria-describedby="pollNotice pollFeedback" disabled>
+              <legend class="poll-legend" id="pollTitle">Live poll</legend>
+              <p class="muted audience-poll-notice" id="pollNotice" role="status" aria-live="polite"></p>
+              <div class="poll-options" id="pollOptions"></div>
+            </fieldset>
+          </form>
+          <p class="form-feedback" id="pollFeedback" role="status" aria-live="polite" aria-atomic="true"></p>
+        </section>
+
+        <section class="audience-card" id="boardCard" aria-labelledby="boardTitle" hidden>
+          <h2 id="boardTitle">Messages</h2>
+          <p class="muted" id="boardNotice">Your message is public.</p>
+          <form class="audience-form" id="boardForm" novalidate>
+            <fieldset id="boardFields" aria-describedby="boardNotice boardFeedback">
+              <legend class="audience-visually-hidden">Post a public message</legend>
+              <div class="audience-field">
+                <label for="boardAuthor">Your name</label>
+                <input id="boardAuthor" name="author" type="text" autocomplete="name" maxlength="60" required>
+              </div>
+              <div class="audience-field">
+                <label for="boardText">Message</label>
+                <textarea id="boardText" name="text" maxlength="400" rows="4" required></textarea>
+              </div>
+              <button class="button" id="boardSubmit" type="submit">Post message</button>
+            </fieldset>
+          </form>
+          <p class="form-feedback" id="boardFeedback" role="status" aria-live="polite" aria-atomic="true"></p>
+        </section>
+
+        <section class="audience-card" id="questionsCard" aria-labelledby="questionsTitle" hidden>
+          <h2 id="questionsTitle">Questions for the speaker</h2>
+          <p class="muted" id="questionPrivacy">Only the presenter sees this.</p>
+          <form class="audience-form" id="questionForm" novalidate>
+            <fieldset id="questionFields" aria-describedby="questionPrivacy questionFeedback">
+              <legend class="audience-visually-hidden">Send a private question</legend>
+              <div class="audience-field">
+                <label for="questionAuthor">Your name (optional)</label>
+                <input id="questionAuthor" name="author" type="text" autocomplete="name" maxlength="60">
+              </div>
+              <div class="audience-field">
+                <label for="questionText">Ask the speaker</label>
+                <textarea id="questionText" name="text" maxlength="400" rows="4" required></textarea>
+              </div>
+              <button class="button" id="questionSubmit" type="submit">Send question</button>
+            </fieldset>
+          </form>
+          <p class="form-feedback" id="questionFeedback" role="status" aria-live="polite" aria-atomic="true"></p>
+        </section>
+
+        <footer class="audience-card audience-contact" id="contactCard" aria-labelledby="contactTitle" hidden>
+          <h2 id="contactTitle">Stay in touch</h2>
+          <p class="audience-presenter-name" id="presenterName"></p>
+          <p class="muted" id="presenterRole"></p>
+          <nav aria-label="Presenter contact links">
+            <ul class="audience-contact-links" id="contactLinks"></ul>
+          </nav>
+          <div class="audience-citation" id="citation" hidden>
+            <h3>Citation</h3>
+            <p id="citationText"></p>
+            <a id="citationLink" target="_blank" rel="noopener noreferrer" hidden>View source</a>
+          </div>
+        </footer>
+
+        <p class="waiting audience-waiting" id="waiting" role="status" aria-live="polite">Follow the presentation. The next activity will appear here.</p>
+      </div>
+    </div>
   </main>
 
   <script src="/assets/sync.js"></script>
   <script type="module">
-    import { CONFIG } from '/audience.config.js';
+    import { CONFIG as initialConfig } from '/audience.config.js';
+    import { applyBrand } from '/assets/settings.js';
 
-    const activity = document.querySelector('#activity');
-    const status = document.querySelector('#status');
-    const pageTitle = document.querySelector('#pageTitle');
-    const questionForm = document.querySelector('#questionForm');
-    const questionText = document.querySelector('#questionText');
-    const questionSubmit = document.querySelector('#questionSubmit');
-    const questionFeedback = document.querySelector('#questionFeedback');
+    let CONFIG = initialConfig;
+
+    const element = id => document.getElementById(id);
+    const cleanName = value => value.replace(/\s+/g, ' ').trim();
+    function setText(id, text) {
+      const node = element(id);
+      if (node.textContent !== text) node.textContent = text;
+    }
+    const pageTitle = element('pageTitle');
+    const actionFeedback = element('actionFeedback');
+    const participantName = element('participantName');
+    const participantEmail = element('participantEmail');
+    const boardAuthor = element('boardAuthor');
+    const boardText = element('boardText');
+    const questionAuthor = element('questionAuthor');
+    const questionText = element('questionText');
+    const examCard = element('examCard');
+    const examHost = element('examHost');
+    const examStatus = element('examStatus');
+    const restoreExam = element('restoreExam');
+    const pollOptions = element('pollOptions');
     let roomState;
-    let myState = { polls: {} };
-    let sendingQuestion = false;
+    let mine = { polls: {}, participant: null, score: null };
+    let editingParticipant = false;
+    let currentPoll = null;
+    let currentBoard = null;
+    let pendingVote = null;
+    let runtimePromise;
+    let examIdentity = '';
+    let examGeneration = 0;
+    let activeViewer = null;
+    let examFocus;
 
-    pageTitle.textContent = CONFIG.title;
-    document.title = `Participar · ${CONFIG.title}`;
-    const colorTokens = {
-      background: '--color-bg', surface: '--color-surface', text: '--color-text',
-      muted: '--color-text-muted', accent: '--color-accent', accentStrong: '--color-accent-strong'
-    };
-    for (const [name, token] of Object.entries(colorTokens)) {
-      if (CONFIG.brand?.colors?.[name]) document.documentElement.style.setProperty(token, CONFIG.brand.colors[name]);
+    let savedAuthor = '';
+    try {
+      savedAuthor = (localStorage.getItem('presentation_author') || '').trim().slice(0, 60);
+    } catch {}
+    boardAuthor.value = savedAuthor;
+    questionAuthor.value = savedAuthor;
+
+    function rememberAuthor(author) {
+      if (!author) return;
+      for (const input of [boardAuthor, questionAuthor]) {
+        if (input.value === savedAuthor) input.value = author;
+      }
+      savedAuthor = author;
+      try { localStorage.setItem('presentation_author', author); } catch {}
     }
 
-    const escapeHtml = value => {
-      const node = document.createElement('div');
-      node.textContent = value ?? '';
-      return node.innerHTML;
+    function setSafeLink(link, href, protocols = ['https:', 'http:']) {
+      try {
+        const url = new URL(href);
+        if (!protocols.includes(url.protocol)) return false;
+        link.href = url.href;
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function updateConfig(config) {
+      if (config.settingsRevision < CONFIG.settingsRevision) return;
+      CONFIG = config;
+      pageTitle.textContent = CONFIG.title;
+      document.title = 'Participate · ' + CONFIG.title;
+      element('brandName').textContent = CONFIG.brand?.name || 'Live presentation';
+      applyBrand(CONFIG);
+      element('contactLinks').replaceChildren();
+      element('citation').hidden = !CONFIG.citation?.text;
+      const presenter = CONFIG.presenter || {};
+      element('presenterName').textContent = presenter.name || '';
+      element('presenterRole').textContent = presenter.role || '';
+      element('presenterRole').hidden = !presenter.role;
+      for (const [key, label] of [['email', 'Email'], ['linkedin', 'LinkedIn'], ['github', 'GitHub']]) {
+        const value = presenter.contact?.[key];
+        if (!value) continue;
+        const link = document.createElement('a');
+        const isEmail = key === 'email';
+        if (!setSafeLink(link, isEmail ? 'mailto:' + value : value, isEmail ? ['mailto:'] : ['https:', 'http:'])) continue;
+        link.textContent = isEmail ? value : label;
+        if (!isEmail) {
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+        }
+        const item = document.createElement('li');
+        item.append(link);
+        element('contactLinks').append(item);
+      }
+      if (CONFIG.citation?.text) {
+        element('citation').hidden = false;
+        element('citationText').textContent = CONFIG.citation.text;
+        element('citationLink').hidden = !setSafeLink(element('citationLink'), CONFIG.citation.url);
+      }
+    }
+    updateConfig(CONFIG);
+
+    const requests = {
+      register: { label: 'Join the ranking', busyLabel: 'Joining…' },
+      board: { label: 'Post message', busyLabel: 'Sending…' },
+      question: { label: 'Send question', busyLabel: 'Sending…' }
     };
+    for (const [kind, request] of Object.entries(requests)) {
+      request.fields = element(kind + 'Fields');
+      request.button = element(kind + 'Submit');
+      request.feedback = element(kind + 'Feedback');
+      request.pending = null;
+      request.timer = null;
+      for (const input of request.fields.querySelectorAll('input, textarea')) {
+        input.addEventListener('input', () => {
+          input.removeAttribute('aria-invalid');
+          if (!request.pending) request.feedback.textContent = '';
+        });
+      }
+    }
+
+    function finishRequest(kind) {
+      const request = requests[kind];
+      const pending = request.pending;
+      clearTimeout(request.timer);
+      request.pending = null;
+      request.fields.disabled = false;
+      request.button.textContent = request.label;
+      if (kind === 'register') element('changeParticipant').disabled = false;
+      return pending;
+    }
+
+    function sendRequest(kind, message, details = {}) {
+      const request = requests[kind];
+      actionFeedback.textContent = '';
+      if (!connection.send(message)) {
+        request.feedback.textContent = 'No connection. Please try again in a few seconds.';
+        return false;
+      }
+      request.pending = { ...message, ...details };
+      request.fields.disabled = true;
+      request.button.textContent = request.busyLabel;
+      request.feedback.textContent = request.busyLabel;
+      if (kind === 'register') element('changeParticipant').disabled = true;
+      request.timer = setTimeout(() => {
+        finishRequest(kind);
+        request.feedback.textContent = 'Confirmation is delayed. Your submission may already have been received. Check your connection before trying again.';
+      }, 15000);
+      return true;
+    }
+
+    function validateInput(input, feedback, message, required = true) {
+      const value = input.value.trim();
+      const valid = (!required || Boolean(value)) && value.length <= input.maxLength;
+      input.removeAttribute('aria-invalid');
+      if (valid) return true;
+      input.setAttribute('aria-invalid', 'true');
+      feedback.textContent = message;
+      input.focus();
+      return false;
+    }
+
+    function renderPoints() {
+      element('pointsCard').hidden = !roomState?.points?.enabled;
+      const participant = mine.participant;
+      const showForm = !participant || editingParticipant;
+      element('pointsTitle').textContent = showForm ? 'Join the ranking' : 'Your points';
+      element('pointsSummary').hidden = !participant;
+      element('registerForm').hidden = !showForm;
+      const change = element('changeParticipant');
+      change.textContent = editingParticipant ? 'Cancel' : 'Change';
+      change.setAttribute('aria-expanded', String(showForm));
+      if (participant) {
+        setText('pointsScore', 'Playing as ' + participant.name + ' · ' +
+          (mine.score ?? 0) + '/' + (roomState?.scoredPolls ?? 0) + ' correct');
+      }
+    }
+
+    element('changeParticipant').addEventListener('click', () => {
+      if (requests.register.pending || !mine.participant) return;
+      editingParticipant = !editingParticipant;
+      requests.register.feedback.textContent = '';
+      if (editingParticipant) {
+        participantName.value = mine.participant.name;
+        participantEmail.value = mine.participant.email;
+        participantName.removeAttribute('aria-invalid');
+        participantEmail.removeAttribute('aria-invalid');
+      }
+      renderPoints();
+      if (editingParticipant) participantName.focus();
+    });
+
+    element('registerForm').addEventListener('submit', event => {
+      event.preventDefault();
+      if (!roomState?.points?.enabled || requests.register.pending) return;
+      const feedback = requests.register.feedback;
+      if (!validateInput(participantName, feedback, 'Enter your name (up to 60 characters).')) return;
+      const email = participantEmail.value.trim().toLowerCase();
+      if (!validateInput(participantEmail, feedback, 'Enter a valid email address (up to 120 characters).')) return;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        participantEmail.setAttribute('aria-invalid', 'true');
+        feedback.textContent = 'Enter a valid email address.';
+        participantEmail.focus();
+        return;
+      }
+      sendRequest('register', { type: 'register', name: cleanName(participantName.value), email });
+    });
+
+    function renderPoll() {
+      const key = roomState?.audience?.poll || null;
+      element('pollCard').hidden = !key;
+      const config = CONFIG.polls?.[key];
+      if (key !== currentPoll) {
+        currentPoll = key;
+        pendingVote = null;
+        element('pollFeedback').textContent = '';
+        pollOptions.replaceChildren();
+        element('pollTitle').textContent = config?.question || 'Live poll';
+        for (const option of config?.options || []) {
+          const label = document.createElement('label');
+          label.className = 'poll-option';
+          const input = document.createElement('input');
+          input.type = config.type === 'single' ? 'radio' : 'checkbox';
+          input.name = 'poll-option';
+          input.value = option.id;
+          const text = document.createElement('span');
+          text.textContent = option.label;
+          label.append(input, text);
+          pollOptions.append(label);
+        }
+      }
+      if (!key) return;
+      const open = Boolean(config && roomState.polls?.[key]?.open);
+      element('pollFields').disabled = !open;
+      setText('pollNotice', !config ? 'This poll is unavailable.' : open ?
+        'You can change your answer while the poll is open.' :
+        'This poll is closed. Your answer is locked.');
+      const selection = mine.polls?.[key];
+      for (const input of pollOptions.querySelectorAll('input')) {
+        input.checked = config.type === 'single' ? selection === input.value : Boolean(selection?.[input.value]);
+        input.closest('label').classList.toggle('is-selected', input.checked);
+      }
+    }
+
+    element('pollForm').addEventListener('submit', event => event.preventDefault());
+    pollOptions.addEventListener('change', event => {
+      const input = event.target;
+      const key = currentPoll;
+      if (!(input instanceof HTMLInputElement) || !roomState?.polls?.[key]?.open) {
+        renderPoll();
+        return;
+      }
+      const message = {
+        type: 'vote', poll: key, option: input.value,
+        value: CONFIG.polls[key].type === 'single' ? true : input.checked
+      };
+      actionFeedback.textContent = '';
+      if (!connection.send(message)) {
+        renderPoll();
+        element('pollFeedback').textContent = 'No connection. Please try again in a few seconds.';
+        return;
+      }
+      pendingVote = message;
+      for (const option of pollOptions.querySelectorAll('input')) {
+        option.closest('label').classList.toggle('is-selected', option.checked);
+      }
+      element('pollFeedback').textContent = 'Saving your answer…';
+    });
+
+    element('boardForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const board = roomState?.audience?.board;
+      if (!board || requests.board.pending) return;
+      const feedback = requests.board.feedback;
+      if (!validateInput(boardAuthor, feedback, 'Enter your name (up to 60 characters).')) return;
+      if (!validateInput(boardText, feedback, 'Write a message (up to 400 characters).')) return;
+      const author = cleanName(boardAuthor.value);
+      if (sendRequest('board', { type: 'board_message', board, author, text: boardText.value.trim() },
+        { moderation: roomState.boards?.[board]?.moderation })) rememberAuthor(author);
+    });
+
+    element('questionForm').addEventListener('submit', event => {
+      event.preventDefault();
+      if (!roomState?.audience?.questions || requests.question.pending) return;
+      const feedback = requests.question.feedback;
+      if (!validateInput(questionAuthor, feedback, 'Use a name of up to 60 characters, or leave it blank.', false)) return;
+      if (!validateInput(questionText, feedback, 'Write a question (up to 400 characters).')) return;
+      const author = cleanName(questionAuthor.value);
+      if (sendRequest('question', { type: 'question', author, text: questionText.value.trim() })) rememberAuthor(author);
+    });
+
+    function loadDicomRuntime() {
+      if (!runtimePromise) {
+        runtimePromise = customElements.get('dicom-study-viewer') ? Promise.resolve() : new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = '/dicom-slide/runtime/dicom-slide.js';
+          script.onload = () => Promise.resolve(window.DicomSlide?.ready).then(resolve, reject);
+          script.onerror = () => reject(new Error('The exam viewer could not load.'));
+          document.head.append(script);
+        });
+      }
+      return runtimePromise;
+    }
+
+    function setExamExpanded(expanded, restoreFocus = true) {
+      const next = Boolean(expanded && activeViewer);
+      const wasExpanded = examCard.classList.contains('is-expanded');
+      if (next && !wasExpanded) examFocus = activeViewer.shadowRoot?.activeElement || document.activeElement;
+      document.body.classList.toggle('is-exam-expanded', next);
+      examCard.classList.toggle('is-expanded', next);
+      restoreExam.hidden = !next;
+      if (next) {
+        examCard.setAttribute('role', 'dialog');
+        examCard.setAttribute('aria-modal', 'true');
+      } else {
+        examCard.removeAttribute('role');
+        examCard.removeAttribute('aria-modal');
+      }
+      if (typeof activeViewer?.setExpanded === 'function') {
+        void Promise.resolve(activeViewer.setExpanded(next)).catch(() => {});
+      }
+      if (next && !wasExpanded) restoreExam.focus({ preventScroll: true });
+      if (!next && wasExpanded && restoreFocus && examFocus?.isConnected) examFocus.focus({ preventScroll: true });
+    }
+
+    restoreExam.addEventListener('click', () => setExamExpanded(false));
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && examCard.classList.contains('is-expanded')) {
+        event.preventDefault();
+        setExamExpanded(false);
+      }
+    });
+
+    function unmountExam() {
+      examGeneration += 1;
+      examIdentity = '';
+      const wasExpanded = examCard.classList.contains('is-expanded');
+      setExamExpanded(false, false);
+      activeViewer = null;
+      examHost.replaceChildren();
+      if (wasExpanded) pageTitle.focus({ preventScroll: true });
+    }
+
+    async function renderExam(key) {
+      const exam = roomState.exams?.[key];
+      if (!key || !exam?.studyId || !exam?.src) {
+        if (examIdentity || activeViewer) unmountExam();
+        examCard.hidden = !key;
+        element('examTitle').textContent = 'Explore the exam';
+        examStatus.hidden = false;
+        examStatus.textContent = key ? 'This exam is not available yet.' : '';
+        return;
+      }
+      examCard.hidden = false;
+      element('examTitle').textContent = exam.title || 'Explore the exam';
+      const identity = JSON.stringify([exam.studyId, exam.src]);
+      if (identity === examIdentity) {
+        activeViewer?.setAttribute('aria-label', exam.title || 'Interactive exam');
+        return;
+      }
+      unmountExam();
+      examIdentity = identity;
+      const generation = examGeneration;
+      examStatus.hidden = false;
+      examStatus.textContent = 'Loading the exam viewer…';
+      try {
+        await loadDicomRuntime();
+        if (generation !== examGeneration) return;
+        if (!customElements.get('dicom-study-viewer')) throw new Error('The exam viewer is unavailable.');
+        const viewer = document.createElement('dicom-study-viewer');
+        viewer.setAttribute('study-id', exam.studyId);
+        viewer.setAttribute('src', exam.src);
+        viewer.setAttribute('role', 'group');
+        viewer.setAttribute('aria-label', exam.title || 'Interactive exam');
+        viewer.addEventListener('dicom-ready', () => {
+          if (generation === examGeneration) examStatus.hidden = true;
+        }, { once: true });
+        viewer.addEventListener('dicom-error', () => {
+          if (generation !== examGeneration) return;
+          examStatus.hidden = false;
+          examStatus.textContent = 'This exam could not be opened. Reload the page to try again.';
+        });
+        viewer.addEventListener('dicom-expand-request', event => {
+          if (generation !== examGeneration) return;
+          setExamExpanded(event.detail?.expanded ?? !examCard.classList.contains('is-expanded'));
+        });
+        activeViewer = viewer;
+        examHost.replaceChildren(viewer);
+      } catch {
+        if (generation !== examGeneration) return;
+        examStatus.hidden = false;
+        examStatus.textContent = 'The exam viewer could not load. Reload the page to try again.';
+      }
+    }
 
     function render() {
       if (!roomState) return;
-      status.textContent = `${roomState.connected || 0} ${roomState.connected === 1 ? 'pessoa conectada' : 'pessoas conectadas'}`;
-      const [kind, key] = String(roomState.activity || '').split(':');
-      if (kind !== 'poll') {
-        activity.innerHTML = '<div class="waiting">Acompanhe a apresentação. A próxima enquete aparecerá aqui.</div>';
-        return;
+      const audience = roomState.audience || {};
+      const count = roomState.connected ?? 0;
+      setText('connectedCount', count + (count === 1 ? ' person connected' : ' people connected'));
+      renderPoints();
+      void renderExam(audience.exam);
+      renderPoll();
+      const board = audience.board || null;
+      element('boardCard').hidden = !board;
+      if (board !== currentBoard) {
+        currentBoard = board;
+        boardText.value = '';
+        boardText.removeAttribute('aria-invalid');
+        requests.board.feedback.textContent = '';
       }
-      const config = CONFIG.polls[key];
-      const poll = roomState.polls?.[key];
-      if (!config) {
-        activity.innerHTML = '<div class="waiting">Atividade indisponível.</div>';
-        return;
-      }
-      const selected = myState.polls?.[key] || (config.type === 'single' ? '' : {});
-      const inputType = config.type === 'single' ? 'radio' : 'checkbox';
-      activity.innerHTML = `<form data-poll-form="${escapeHtml(key)}">
-        <fieldset style="border:0;padding:0;margin:0" ${poll?.open ? '' : 'disabled'}>
-          <legend class="poll-legend">${escapeHtml(config.question)}</legend>
-          <p class="muted">${poll?.open ? 'Você pode alterar sua resposta enquanto a enquete estiver aberta.' : 'Esta enquete está encerrada.'}</p>
-          <div class="poll-options">${config.options.map(option => {
-            const checked = config.type === 'single' ? selected === option.id : Boolean(selected[option.id]);
-            return `<label class="poll-option ${checked ? 'is-selected' : ''}">
-              <input type="${inputType}" name="poll-option" value="${escapeHtml(option.id)}" ${checked ? 'checked' : ''}>
-              <span>${escapeHtml(option.label)}</span>
-            </label>`;
-          }).join('')}</div>
-        </fieldset>
-      </form>`;
-      activity.querySelectorAll('input[name="poll-option"]').forEach(input => {
-        input.addEventListener('change', () => {
-          if (!poll?.open) return;
-          const value = config.type === 'single' ? true : input.checked;
-          connection.send({ type: 'vote', poll: key, option: input.value, value });
-        });
-      });
+      element('boardTitle').textContent = CONFIG.boards?.[board]?.title || 'Messages';
+      element('boardNotice').textContent = roomState.boards?.[board]?.moderation === 'manual' ?
+        'Your message will be public after approval.' : 'Your message is public.';
+      element('questionsCard').hidden = !audience.questions;
+      element('contactCard').hidden = !audience.contact;
+      element('waiting').hidden = Boolean(roomState.points?.enabled || audience.exam || audience.poll ||
+        audience.board || audience.questions || audience.contact);
     }
-
-    function setQuestionBusy(busy) {
-      sendingQuestion = busy;
-      questionText.disabled = busy;
-      questionSubmit.disabled = busy;
-      questionSubmit.textContent = busy ? 'Enviando…' : 'Enviar pergunta';
-    }
-
-    questionForm.addEventListener('submit', event => {
-      event.preventDefault();
-      if (sendingQuestion) return;
-      const text = questionText.value.replace(/\s+/g, ' ').trim();
-      questionText.removeAttribute('aria-invalid');
-      if (!text) {
-        questionText.setAttribute('aria-invalid', 'true');
-        questionFeedback.textContent = 'Escreva uma pergunta antes de enviar.';
-        questionText.focus();
-        return;
-      }
-      if (!connection.send({ type: 'question', text })) {
-        questionFeedback.textContent = 'Sem conexão. Tente novamente em alguns segundos.';
-        return;
-      }
-      setQuestionBusy(true);
-      questionFeedback.textContent = 'Enviando…';
-    });
-
-    questionText.addEventListener('input', () => {
-      questionText.removeAttribute('aria-invalid');
-      if (!sendingQuestion) questionFeedback.textContent = '';
-    });
 
     const connection = LivePresentation.connect({
       role: 'audience',
+      config: CONFIG,
+      onConfig: updateConfig,
       onState: nextState => {
         roomState = nextState;
         render();
       },
-      onMine: nextState => {
-        myState = nextState;
-        render();
+      onMine: nextMine => {
+        const previousParticipant = mine.participant;
+        mine = nextMine;
+        const registration = requests.register.pending;
+        let focusParticipant = false;
+        if (registration && mine.participant?.email === registration.email && mine.participant?.name === registration.name) {
+          focusParticipant = element('registerForm').contains(document.activeElement);
+          finishRequest('register');
+          editingParticipant = false;
+          participantName.value = '';
+          participantEmail.value = '';
+          requests.register.feedback.textContent = 'Joined the ranking.';
+        } else if (previousParticipant && !mine.participant) {
+          finishRequest('register');
+          editingParticipant = false;
+          participantName.value = '';
+          participantEmail.value = '';
+          requests.register.feedback.textContent = '';
+        }
+        if (pendingVote) {
+          const selection = mine.polls?.[pendingVote.poll];
+          const saved = CONFIG.polls?.[pendingVote.poll]?.type === 'single' ?
+            selection === pendingVote.option : Boolean(selection?.[pendingVote.option]) === pendingVote.value;
+          if (saved) {
+            element('pollFeedback').textContent = 'Answer saved.';
+            pendingVote = null;
+          }
+        }
+        renderPoints();
+        if (focusParticipant) element('changeParticipant').focus();
+        renderPoll();
+      },
+      onMessage: () => {
+        const pending = finishRequest('board');
+        if (!pending || roomState?.audience?.board !== pending.board) return;
+        if (boardText.value.trim() === pending.text) boardText.value = '';
+        requests.board.feedback.textContent = pending.moderation === 'manual' ? 'Sent for approval.' : 'Posted.';
       },
       onQuestion: () => {
-        questionText.value = '';
-        setQuestionBusy(false);
-        questionFeedback.textContent = 'Pergunta enviada.';
+        const pending = finishRequest('question');
+        if (!pending) return;
+        if (questionText.value.trim() === pending.text) questionText.value = '';
+        requests.question.feedback.textContent = 'Question sent.';
       },
       onError: message => {
-        setQuestionBusy(false);
-        questionFeedback.textContent = message || 'Não foi possível concluir a ação.';
+        actionFeedback.textContent = message || 'The action could not be completed. Please try again.';
+        for (const kind of Object.keys(requests)) {
+          if (!requests[kind].pending) continue;
+          finishRequest(kind);
+          requests[kind].feedback.textContent = '';
+        }
+        pendingVote = null;
+        element('pollFeedback').textContent = '';
+        renderPoll();
       }
     });
   </script>

@@ -1,0 +1,7 @@
+(function(g){
+var base=new URL('.',document.currentScript.src).href;
+var m={"format":"dicom-slide-volume/1","caseId":"mri-dir-t1-mr--series-2-t1post2-3381f4c","title":"T1Post2","modality":"MR","dimensions":{"columns":256,"rows":256,"slices":14},"spacing":{"column":1.0,"row":1.0,"slice":4.0},"orientationLPS":[1.0,0.0,0.0,0.0,1.0,0.0],"sliceCoordinates":[2.4,6.39999,10.4,14.4,18.4,22.4,26.4,30.4,34.4,38.4,42.4,46.4,50.4,54.4],"sortMode":"spatial","pixelType":"int16-le","samplesPerPixel":1,"units":"stored units","invert":false,"valueRange":{"minimum":0,"maximum":4317},"initialSlice":7,"defaultWindow":{"center":317.0,"width":634.0},"presets":{"dicom":{"label":"DICOM","center":317.0,"width":634.0},"full":{"label":"Full range","center":2158.5,"width":4317.0}},"chunks":[{"index":0,"firstSlice":0,"sliceCount":7,"script":"chunks/chunk-000.js","compressedBytes":279532,"uncompressedBytes":917504},{"index":1,"firstSlice":7,"sliceCount":7,"script":"chunks/chunk-001.js","compressedBytes":326600,"uncompressedBytes":917504}],"source":{"studyDescription":"MRI HEAD WITHOUT CON","seriesDescription":"T1Post2","seriesNumber":"2","transferSyntaxUID":"1.2.840.10008.1.2"}};m.baseUrl=base;
+var p=["mri-dir-t1-mr--series-2-t1post2-3381f4c",m];
+if(g.DicomSlideData&&g.DicomSlideData.registerManifest){g.DicomSlideData.registerManifest.apply(null,p);}
+else{(g.__DICOM_SLIDE_PENDING_MANIFESTS__||(g.__DICOM_SLIDE_PENDING_MANIFESTS__=[])).push(p);}
+})(window);

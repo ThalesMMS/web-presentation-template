@@ -1,150 +1,399 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Apresentação</title>
+  <title>Presentation</title>
   <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body class="presenter">
-  <a class="skip-link" href="#deck">Ir para os slides</a>
-  <div class="connection" role="status">Conexão interrompida. Reconectando…</div>
-  <main class="deck" id="deck" tabindex="-1"></main>
+  <a class="skip-link" href="#deck">Skip to slides</a>
+  <div class="connection" role="status">Connection interrupted. Reconnecting…</div>
+  <div class="stage-feedback" id="stageFeedback" role="alert" hidden></div>
+  <main class="deck" id="deck" tabindex="-1" aria-label="Presentation slides"></main>
 
-  <button class="corner-qr" id="cornerQr" type="button" aria-label="Abrir página de participação em nova aba">
-    <canvas aria-hidden="true"></canvas>
-  </button>
-
-  <div class="presenter-chrome" aria-label="Controles da apresentação">
-    <span class="slide-counter" id="slideCounter" aria-live="polite"></span>
-    <div class="chrome-actions">
-      <button class="icon-button" id="previousSlide" type="button" aria-label="Slide anterior">←</button>
-      <button class="icon-button" id="nextSlide" type="button" aria-label="Próximo slide">→</button>
-      <button class="icon-button" id="toggleFullscreen" type="button" aria-label="Alternar tela cheia">⛶</button>
+  <nav class="presenter-chrome" aria-label="Presentation controls">
+    <div class="stage-navigation">
+      <button class="icon-button" id="previousSlide" type="button" aria-label="Previous slide" title="Previous slide">◀</button>
+      <div class="slide-menu-anchor">
+        <button class="toolbar-button slide-counter" id="slideCounter" type="button" aria-haspopup="menu" aria-controls="slideMenu" aria-expanded="false" aria-live="polite"></button>
+        <ul class="slide-menu" id="slideMenu" role="menu" aria-label="Go to slide" hidden></ul>
+      </div>
+      <button class="icon-button" id="nextSlide" type="button" aria-label="Next slide" title="Next slide">▶</button>
     </div>
-  </div>
+    <button class="toolbar-button pace" id="pace" type="button" data-state="idle" aria-pressed="false" title="Click to start or pause; double-click to reset">
+      <span aria-hidden="true">⏱</span><span class="pace-clock" id="paceClock">00:00</span>
+      <span aria-hidden="true">·</span><span class="pace-delta" id="paceDelta">ready</span>
+    </button>
+    <span class="total-time" id="totalTime" tabindex="0"></span>
+    <a class="toolbar-button audience-link" id="audienceLink" href="/participar/" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">🔗</span> /participar/</a>
+    <button class="toolbar-button" id="qrButton" type="button" aria-haspopup="dialog" aria-controls="qrOverlay" aria-expanded="false">QR</button>
+    <button class="toolbar-button" id="canvasButton" type="button" aria-haspopup="dialog" aria-controls="canvasDialog" aria-expanded="false" hidden>Canvas</button>
+    <a class="toolbar-button" id="settingsLink" href="/regie/#settings" target="_blank" rel="noopener noreferrer">Settings</a>
+    <button class="icon-button" id="toggleFullscreen" type="button" aria-label="Enter fullscreen" title="Enter fullscreen">⛶</button>
+  </nav>
   <div class="progress" aria-hidden="true"><div class="progress-bar" id="progressBar"></div></div>
+
+  <dialog class="stage-dialog qr-overlay" id="qrOverlay" aria-labelledby="qrTitle">
+    <button class="button secondary stage-dialog-close" type="button" autofocus>Close</button>
+    <div class="qr-overlay-content">
+      <p class="eyebrow">Join the presentation</p><h2 id="qrTitle">Scan to participate</h2>
+      <canvas id="largeQr" role="img" aria-label="QR code for the audience page"></canvas>
+      <a id="qrAudienceUrl" target="_blank" rel="noopener noreferrer"></a>
+      <p class="muted">Press Esc or click to close.</p>
+    </div>
+  </dialog>
+
+  <dialog class="stage-dialog canvas-dialog" id="canvasDialog" aria-labelledby="canvasTitle" hidden>
+    <div class="canvas-dialog-header">
+      <h2 id="canvasTitle">Canvas</h2>
+      <button class="button secondary stage-dialog-close" type="button" autofocus>Close</button>
+    </div>
+    <iframe id="canvasFrame" title="Canvas" allowfullscreen referrerpolicy="no-referrer"></iframe>
+  </dialog>
 
   <script src="/assets/qrcode.js"></script>
   <script src="/assets/sync.js"></script>
   <script type="module">
-    import { CONFIG } from '/presentation.config.js';
-    import { activityForSlide } from '/assets/activity.js';
+    import { CONFIG as initialConfig } from '/presentation.config.js';
+    import { paceSchedule, scoredPollKeys } from '/assets/slides.js';
+    import { mountExam } from '/assets/stage-exam.js';
+    import { applyBrand } from '/assets/settings.js';
+
+    let CONFIG = initialConfig;
 
     const deck = document.querySelector('#deck');
     const slideCounter = document.querySelector('#slideCounter');
+    const slideMenu = document.querySelector('#slideMenu');
     const progressBar = document.querySelector('#progressBar');
-    const cornerQr = document.querySelector('#cornerQr');
+    const previousButton = document.querySelector('#previousSlide');
+    const nextButton = document.querySelector('#nextSlide');
+    const paceButton = document.querySelector('#pace');
+    const paceClock = document.querySelector('#paceClock');
+    const paceDelta = document.querySelector('#paceDelta');
+    const qrButton = document.querySelector('#qrButton');
+    const qrOverlay = document.querySelector('#qrOverlay');
+    const canvasButton = document.querySelector('#canvasButton');
+    const canvasDialog = document.querySelector('#canvasDialog');
+    const fullscreenButton = document.querySelector('#toggleFullscreen');
+    const stageFeedback = document.querySelector('#stageFeedback');
     const participantUrl = new URL('/participar/', location.origin).href;
+    let schedule = paceSchedule(CONFIG);
+    const numberFormat = new Intl.NumberFormat('en', { maximumFractionDigits: 1 });
+    const toolbar = document.querySelector('.presenter-chrome');
+    new ResizeObserver(() => {
+      const clearance = window.innerHeight - toolbar.getBoundingClientRect().top + 12;
+      document.body.style.setProperty('--stage-toolbar-height', `${clearance}px`);
+    }).observe(toolbar);
     let currentIndex = -1;
     let isController = false;
-    let roomState = { connected: 0, polls: {} };
+    let roomState = { connected: 0, polls: {}, boards: {}, exams: {}, points: { enabled: false }, ranking: [] };
+    let startedAt = null;
+    let frozenMs = 0;
+    let paceStarted = false;
 
-    const escapeHtml = value => {
-      const node = document.createElement('div');
-      node.textContent = value ?? '';
-      return node.innerHTML;
-    };
+    const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
 
-    const safeColors = CONFIG.brand?.colors || {};
-    const colorTokens = {
-      background: '--color-bg',
-      surface: '--color-surface',
-      text: '--color-text',
-      muted: '--color-text-muted',
-      accent: '--color-accent',
-      accentStrong: '--color-accent-strong'
-    };
-    for (const [name, token] of Object.entries(colorTokens)) {
-      if (safeColors[name]) document.documentElement.style.setProperty(token, safeColors[name]);
-    }
-
+    applyBrand(CONFIG);
     document.title = CONFIG.title;
 
-    function pollSlide(slide) {
-      const poll = CONFIG.polls[slide.poll];
-      if (!poll) return '<div class="slide-content"><p>Enquete não encontrada.</p></div>';
-      return `<div class="slide-content">
-        <p class="eyebrow">${escapeHtml(slide.eyebrow || 'Enquete ao vivo')}</p>
-        <h1 class="statement-title">${escapeHtml(poll.question)}</h1>
-        <div class="poll-results" data-poll-results="${escapeHtml(slide.poll)}"></div>
-        <p class="result-summary" data-poll-summary="${escapeHtml(slide.poll)}">Aguardando respostas…</p>
-      </div>`;
+    function heading(slide, titleClass = 'statement-title') {
+      return `<p class="eyebrow" data-slide-text="eyebrow" ${slide.eyebrow ? '' : 'hidden'}>${escapeHtml(slide.eyebrow)}</p>
+        <h1 class="${titleClass}" data-slide-text="title" id="title-${escapeHtml(slide.id)}">${escapeHtml(slide.title || CONFIG.title)}</h1>`;
+    }
+
+    function listMarkup(items = [], key = 'items') {
+      return `<ul class="slide-list" data-slide-list="${key}" ${items.length ? '' : 'hidden'}>${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+    }
+
+    function pollMarkup(slide) {
+      const poll = CONFIG.polls?.[slide.poll];
+      if (!poll) return '<p class="empty-state">Poll unavailable.</p>';
+      const mode = slide.pollResults || 'live';
+      const options = mode === 'hidden'
+        ? `<ul class="stage-hidden-options">${poll.options.map(option => `<li>${escapeHtml(option.label)}</li>`).join('')}</ul>
+           <p class="stage-poll-lock"><span aria-hidden="true">🔒</span> Results on the next slide</p>`
+        : `<div class="poll-results">${poll.options.map(option => `
+            <div class="result-row" data-option-id="${escapeHtml(option.id)}">
+              <span class="result-label">${escapeHtml(option.label)}</span>
+              <span class="result-value"><strong data-percentage>0%</strong><span data-count>0 votes</span></span>
+              <div class="result-track" aria-hidden="true"><div class="result-fill"></div></div>
+            </div>`).join('')}</div>
+           <p class="result-summary" data-poll-summary>Waiting for responses…</p>`;
+      return `<section class="stage-poll" data-poll="${escapeHtml(slide.poll)}" data-results-mode="${mode}" aria-label="${escapeHtml(poll.question)}">
+        <div class="stage-block-heading"><h2>${escapeHtml(poll.question)}</h2><span class="status" data-poll-status>${mode === 'final' ? 'Closed' : 'Waiting'}</span></div>
+        ${options}
+      </section>`;
+    }
+
+    function boardMarkup(key) {
+      const title = CONFIG.boards?.[key]?.title || 'Messages';
+      return `<section class="stage-board" aria-label="${escapeHtml(title)}">
+        <div class="stage-block-heading"><h2>${escapeHtml(title)}</h2><span class="stage-board-label">Audience messages</span></div>
+        <div class="stage-feed" data-board="${escapeHtml(key)}" role="log" aria-label="${escapeHtml(title)}" aria-live="polite" aria-relevant="additions" tabindex="0"></div>
+      </section>`;
+    }
+
+    function supportingMarkup(slide) {
+      if (slide.board) return boardMarkup(slide.board);
+      return `<p class="stage-explanation" data-slide-text="explanation" ${slide.explanation ? '' : 'hidden'}>${escapeHtml(slide.explanation)}</p>
+        ${listMarkup(slide.explanation ? [] : slide.items)}
+        <p class="stage-explanation" data-slide-text="description" ${!slide.explanation && !slide.items?.length && slide.description ? '' : 'hidden'}>${escapeHtml(slide.description)}</p>`;
+    }
+
+    function contactMarkup() {
+      const presenter = CONFIG.presenter || {};
+      const contact = presenter.contact || {};
+      const links = [
+        contact.email ? `<a href="mailto:${escapeHtml(contact.email)}">${escapeHtml(contact.email)}</a>` : '',
+        contact.linkedin ? `<a href="${escapeHtml(contact.linkedin)}" target="_blank" rel="noopener noreferrer">LinkedIn</a>` : '',
+        contact.github ? `<a href="${escapeHtml(contact.github)}" target="_blank" rel="noopener noreferrer">GitHub</a>` : ''
+      ].filter(Boolean).join('');
+      return `<section class="stage-contact" aria-label="Presenter contact">
+        <h2>${escapeHtml(presenter.name)}</h2>
+        ${presenter.role ? `<p class="muted">${escapeHtml(presenter.role)}</p>` : ''}
+        <div class="stage-contact-links">${links}</div>
+      </section>`;
     }
 
     function slideMarkup(slide) {
-      const eyebrow = slide.eyebrow ? `<p class="eyebrow">${escapeHtml(slide.eyebrow)}</p>` : '';
       if (slide.type === 'cover') {
         return `<div class="slide-content cover-layout">
-          <div>${eyebrow}<h1 class="slide-title">${escapeHtml(slide.title)} <span class="highlight">${escapeHtml(slide.highlight || '')}</span></h1><p class="slide-description">${escapeHtml(slide.description || '')}</p></div>
-          <div><div class="qr-card"><canvas class="cover-qr" aria-hidden="true"></canvas><a href="${escapeHtml(participantUrl)}" target="_blank" rel="noopener">${escapeHtml(participantUrl)}</a></div><p class="live-count"><strong data-connected>0</strong> pessoas conectadas</p></div>
+          <div>${heading(slide, 'slide-title')}
+            <p class="slide-description" data-slide-text="description">${escapeHtml(slide.description || CONFIG.subtitle || '')}</p>
+            ${listMarkup(slide.topics, 'topics')}
+          </div>
+          <div class="cover-participation"><div class="qr-card">
+            <canvas class="cover-qr" role="img" aria-label="QR code for the audience page"></canvas>
+            <a href="${escapeHtml(participantUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(participantUrl)}</a>
+          </div><p class="live-count"><strong data-connected>0</strong> connected</p></div>
         </div>`;
       }
-      if (slide.type === 'poll') return pollSlide(slide);
-      if (slide.type === 'list') {
-        return `<div class="slide-content">${eyebrow}<h1 class="statement-title">${escapeHtml(slide.title)}</h1><ul class="slide-list">${(slide.items || []).map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>`;
+      if (slide.type === 'pause') {
+        return `<div class="slide-content pause-layout">${heading(slide, 'slide-title')}
+          <p class="slide-description" data-slide-text="description" ${slide.description ? '' : 'hidden'}>${escapeHtml(slide.description)}</p></div>`;
       }
-      if (slide.type === 'quote') {
-        return `<div class="slide-content">${eyebrow}<blockquote class="quote-text">${escapeHtml(slide.quote)}</blockquote>${slide.attribution ? `<p class="quote-attribution">— ${escapeHtml(slide.attribution)}</p>` : ''}</div>`;
+      if (slide.type === 'closing') {
+        const citation = CONFIG.citation || {};
+        return `<div class="slide-content closing-layout">
+          <section class="stage-ranking" data-ranking hidden aria-label="Audience ranking">
+            <h2>Audience ranking</h2>
+            <div class="stage-ranking-scroll" tabindex="0" aria-label="Ranking table"><table class="ranking-table">
+              <thead><tr><th scope="col">Rank</th><th scope="col">Name</th><th scope="col">Score</th></tr></thead>
+              <tbody></tbody>
+            </table></div>
+          </section>
+          <div class="closing-message">${heading(slide, 'slide-title')}
+            <p class="slide-description" data-slide-text="description" ${slide.description ? '' : 'hidden'}>${escapeHtml(slide.description)}</p>
+            <section class="stage-citation"><h2>How to cite</h2>
+              <p data-citation-text>${escapeHtml(citation.text)}</p>
+              <a data-citation-url href="${escapeHtml(citation.url)}" target="_blank" rel="noopener noreferrer" ${citation.url ? '' : 'hidden'}>${escapeHtml(citation.url)}</a>
+            </section>
+            ${contactMarkup()}
+          </div>
+        </div>`;
       }
-      return `<div class="slide-content">${eyebrow}<h1 class="statement-title">${escapeHtml(slide.title)}</h1>${slide.description ? `<p class="slide-description">${escapeHtml(slide.description)}</p>` : ''}</div>`;
+      const primary = slide.exam
+        ? `<div data-exam="${escapeHtml(slide.exam)}"></div>`
+        : slide.poll ? pollMarkup(slide) : '';
+      const secondary = `${slide.exam && slide.poll ? pollMarkup(slide) : ''}${supportingMarkup(slide)}`;
+      if (!primary) {
+        return `<div class="slide-content content-layout text-content-layout"><header>${heading(slide)}</header><div class="stage-column">${secondary}</div></div>`;
+      }
+      return `<div class="slide-content content-slide">
+        <header class="stage-slide-header">${heading(slide)}</header>
+        <div class="content-layout ${slide.exam ? 'has-exam' : ''}">
+          <div class="stage-column stage-primary">${primary}</div>
+          <div class="stage-column stage-secondary">${secondary}</div>
+        </div>
+      </div>`;
     }
 
-    deck.innerHTML = CONFIG.slides.map((slide, index) => (
-      `<section class="slide" data-index="${index}" data-activity="${escapeHtml(activityForSlide(slide))}" aria-hidden="true">${slideMarkup(slide)}</section>`
-    )).join('');
-
-    const slides = [...document.querySelectorAll('.slide')];
+    deck.innerHTML = CONFIG.slides.map((slide, index) => `
+      <section class="slide" data-index="${index}" data-slide-id="${escapeHtml(slide.id)}" data-type="${escapeHtml(slide.type)}" aria-labelledby="title-${escapeHtml(slide.id)}" aria-hidden="true" inert>${slideMarkup(slide)}</section>`).join('');
+    const slides = [...deck.querySelectorAll('.slide')];
+    slideMenu.innerHTML = CONFIG.slides.map((slide, index) => `
+      <li role="none"><button type="button" role="menuitem" tabindex="-1" data-slide-index="${index}">${index + 1}. ${escapeHtml(slide.title || slide.id)}</button></li>`).join('');
+    const menuItems = [...slideMenu.querySelectorAll('button')];
     document.querySelectorAll('.cover-qr').forEach(canvas => LivePresentation.drawQr(canvas, participantUrl, 640));
-    LivePresentation.drawQr(cornerQr.querySelector('canvas'), participantUrl, 320);
-    cornerQr.addEventListener('click', () => window.open(participantUrl, '_blank', 'noopener'));
+    LivePresentation.drawQr(document.querySelector('#largeQr'), participantUrl, 1200);
+    document.querySelector('#audienceLink').href = participantUrl;
+    document.querySelector('#qrAudienceUrl').href = participantUrl;
+    document.querySelector('#qrAudienceUrl').textContent = participantUrl;
 
     function renderPollResults() {
-      document.querySelectorAll('[data-poll-results]').forEach(container => {
-        const key = container.dataset.pollResults;
-        const config = CONFIG.polls[key];
-        const result = roomState.polls?.[key] || { responses: 0, counts: {} };
-        const maximum = Math.max(1, ...config.options.map(option => result.counts?.[option.id] || 0));
-        container.innerHTML = config.options.map(option => {
-          const count = result.counts?.[option.id] || 0;
-          const percentage = result.responses ? Math.round(count / result.responses * 100) : 0;
-          const width = count / maximum * 100;
-          return `<div class="result-row ${count > 0 && count === maximum ? 'is-leading' : ''}">
-            <span class="result-label">${escapeHtml(option.label)}</span>
-            <span class="result-track" aria-hidden="true"><span class="result-fill" style="width:${width}%"></span></span>
-            <span class="result-value">${percentage}%</span>
-          </div>`;
-        }).join('');
-        const summary = document.querySelector(`[data-poll-summary="${CSS.escape(key)}"]`);
-        if (summary) {
-          const extra = config.type === 'multiple' && result.responses
-            ? ` · média de ${Number(result.average || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} escolhas por pessoa`
-            : '';
-          summary.textContent = result.responses
-            ? `${result.responses} ${result.responses === 1 ? 'resposta' : 'respostas'}${extra}`
-            : 'Aguardando respostas…';
+      deck.querySelectorAll('[data-poll]').forEach(container => {
+        const config = CONFIG.polls[container.dataset.poll];
+        const result = roomState.polls?.[container.dataset.poll];
+        const final = container.dataset.resultsMode === 'final';
+        const badge = container.querySelector('[data-poll-status]');
+        badge.textContent = final || result?.open === false ? 'Closed' : result?.open ? 'Open' : 'Waiting';
+        badge.classList.toggle('is-closed', final || result?.open === false);
+        if (container.dataset.resultsMode === 'hidden') return;
+        const responses = Number(result?.responses) || 0;
+        const maximum = Math.max(0, ...config.options.map(option => Number(result?.counts?.[option.id]) || 0));
+        container.querySelectorAll('[data-option-id]').forEach(row => {
+          const count = Number(result?.counts?.[row.dataset.optionId]) || 0;
+          const percentage = responses ? Math.round(count / responses * 100) : 0;
+          row.classList.toggle('is-leading', count > 0 && count === maximum);
+          row.querySelector('.result-fill').style.width = `${Math.max(0, Math.min(100, percentage))}%`;
+          row.querySelector('[data-percentage]').textContent = `${percentage}%`;
+          row.querySelector('[data-count]').textContent = `${count} ${count === 1 ? 'vote' : 'votes'}`;
+        });
+        const extra = config.type === 'multiple' && responses
+          ? ` · ${numberFormat.format(Number(result?.average) || 0)} choices per person on average` : '';
+        container.querySelector('[data-poll-summary]').textContent = responses
+          ? `${responses} ${responses === 1 ? 'response' : 'responses'}${extra}`
+          : final || result?.open === false ? 'No responses.' : 'Waiting for responses…';
+      });
+      deck.querySelectorAll('[data-connected]').forEach(node => { node.textContent = roomState.connected || 0; });
+    }
+
+    function scrollFeedToEnd(feed) {
+      requestAnimationFrame(() => { feed.scrollTop = feed.scrollHeight; });
+    }
+
+    function renderBoards() {
+      deck.querySelectorAll('[data-board]').forEach(feed => {
+        // Presenter state can include moderation data; only approved messages belong on stage.
+        const messages = (roomState.boards?.[feed.dataset.board]?.messages || [])
+          .filter(message => !message.status || message.status === 'approved').slice(0, 100).reverse();
+        const signature = JSON.stringify(messages);
+        if (feed.dataset.messages === signature) return;
+        feed.dataset.messages = signature;
+        feed.innerHTML = messages.length ? messages.map(message => `<article class="stage-feed-message">
+          <h3>${escapeHtml(message.author)}</h3><p>${escapeHtml(message.text)}</p>
+        </article>`).join('') : '<p class="stage-feed-empty">No messages yet. Join the conversation from your phone.</p>';
+        scrollFeedToEnd(feed);
+      });
+    }
+
+    function renderRanking() {
+      deck.querySelectorAll('[data-ranking]').forEach(container => {
+        const ranking = roomState.ranking || [];
+        const visible = Boolean(roomState.points?.enabled && ranking.length);
+        container.hidden = !visible;
+        container.closest('.closing-layout').classList.toggle('has-ranking', visible);
+        const total = roomState.scoredPolls ?? scoredPollKeys(CONFIG).length;
+        container.querySelector('tbody').innerHTML = visible ? ranking.map(entry => `<tr>
+          <td>${escapeHtml(entry.rank)}</td><th scope="row">${escapeHtml(entry.name)}</th>
+          <td>${escapeHtml(entry.score)}/${escapeHtml(total)}</td>
+        </tr>`).join('') : '';
+      });
+    }
+
+    function renderExams() {
+      deck.querySelectorAll('[data-exam]').forEach(host => {
+        // Load exams when first shown, then retain their interactive state between slides.
+        if (host.childElementCount || host.closest('.slide').classList.contains('is-active')) {
+          mountExam(host, host.dataset.exam, roomState.exams?.[host.dataset.exam]);
         }
       });
-      document.querySelectorAll('[data-connected]').forEach(node => {
-        node.textContent = roomState.connected || 0;
-      });
+    }
+
+    const clockText = seconds => {
+      const value = Math.floor(Math.abs(seconds));
+      return `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+    };
+
+    function renderPace() {
+      const elapsedSeconds = (frozenMs + (startedAt === null ? 0 : performance.now() - startedAt)) / 1000;
+      paceClock.textContent = clockText(elapsedSeconds);
+      paceButton.setAttribute('aria-pressed', String(startedAt !== null));
+      if (!paceStarted) {
+        paceButton.dataset.state = 'idle';
+        paceDelta.textContent = `ready · ${numberFormat.format(schedule.total)} min`;
+        return;
+      }
+      const target = (schedule.expected[CONFIG.slides[currentIndex]?.id] || 0) * 60;
+      const drift = elapsedSeconds - target;
+      const state = drift > 45 ? 'late' : drift < -45 ? 'early' : 'ontime';
+      const delta = state === 'late' ? `late ${clockText(drift)}` : state === 'early' ? `early ${clockText(drift)}` : 'on pace';
+      paceButton.dataset.state = startedAt === null ? 'paused' : state;
+      paceDelta.textContent = startedAt === null ? `paused · ${delta}` : delta;
+    }
+
+    function startPaceOnFirstAdvance(index) {
+      if (!paceStarted && CONFIG.slides[index]?.type !== 'cover') {
+        paceStarted = true;
+        startedAt = performance.now();
+      }
+      renderPace();
+    }
+
+    paceButton.addEventListener('click', () => {
+      paceStarted = true;
+      if (startedAt === null) startedAt = performance.now();
+      else { frozenMs += performance.now() - startedAt; startedAt = null; }
+      renderPace();
+    });
+    paceButton.addEventListener('dblclick', () => {
+      startedAt = null;
+      frozenMs = 0;
+      paceStarted = false;
+      renderPace();
+    });
+    const totalTime = document.querySelector('#totalTime');
+    function renderTiming() {
+      totalTime.textContent = `⏲ ${numberFormat.format(schedule.total)} min`;
+      totalTime.title = [`Total duration: ${numberFormat.format(schedule.total)} minutes`, ...CONFIG.slides.map((slide, index) => {
+        const next = CONFIG.slides[index + 1];
+        const start = schedule.expected[slide.id];
+        const declared = CONFIG.timing?.slides?.[slide.id];
+        const end = next ? schedule.expected[next.id] : declared !== undefined ? start + declared
+          : slide.type === 'cover' ? start : Math.max(start, schedule.total);
+        return `${index + 1}. ${slide.title || slide.id}: ${numberFormat.format(end - start)} min (starts at ${clockText(start * 60)})`;
+      })].join('\n');
+      totalTime.setAttribute('aria-label', totalTime.title);
+      renderPace();
+    }
+    renderTiming();
+    setInterval(renderPace, 1000);
+
+    function closeSlideMenu({ restoreFocus = false } = {}) {
+      slideMenu.hidden = true;
+      slideCounter.setAttribute('aria-expanded', 'false');
+      if (restoreFocus) slideCounter.focus();
+    }
+
+    function openSlideMenu(index = currentIndex) {
+      slideMenu.hidden = false;
+      slideCounter.setAttribute('aria-expanded', 'true');
+      slideMenu.style.left = '0px';
+      const overflow = slideMenu.getBoundingClientRect().right - window.innerWidth + 16;
+      if (overflow > 0) slideMenu.style.left = `${-overflow}px`;
+      const item = menuItems[Math.max(0, index)];
+      item?.focus();
+      item?.scrollIntoView({ block: 'nearest' });
     }
 
     function goTo(index, { updateHash = true } = {}) {
       const nextIndex = Math.max(0, Math.min(slides.length - 1, index));
       if (nextIndex === currentIndex) return;
+      closeSlideMenu();
+      stageFeedback.hidden = true;
       slides.forEach((slide, slideIndex) => {
         const active = slideIndex === nextIndex;
         slide.classList.toggle('is-active', active);
         slide.setAttribute('aria-hidden', String(!active));
+        slide.inert = !active;
+        menuItems[slideIndex].toggleAttribute('data-current', active);
+        if (active) menuItems[slideIndex].setAttribute('aria-current', 'step');
+        else menuItems[slideIndex].removeAttribute('aria-current');
       });
       currentIndex = nextIndex;
-      slideCounter.textContent = `${nextIndex + 1} / ${slides.length}`;
+      slideCounter.textContent = `${nextIndex + 1} / ${slides.length} ▴`;
+      slideCounter.setAttribute('aria-label', `Slide ${nextIndex + 1} of ${slides.length}: ${CONFIG.slides[nextIndex].title}. Choose a slide`);
+      previousButton.disabled = nextIndex === 0;
+      nextButton.disabled = nextIndex === slides.length - 1;
       progressBar.style.width = `${(nextIndex + 1) / slides.length * 100}%`;
-      const activity = slides[nextIndex].dataset.activity;
-      cornerQr.classList.toggle('is-visible', activity.startsWith('poll:'));
       if (updateHash) history.replaceState(null, '', `#/${nextIndex + 1}`);
-      if (isController) connection.sendVital('activity', { type: 'activity', activity });
+      if (isController) connection.sendVital('slide', { type: 'slide', slide: CONFIG.slides[nextIndex].id });
+      startPaceOnFirstAdvance(nextIndex);
+      renderExams();
+      slides[nextIndex].querySelectorAll('[data-board]').forEach(scrollFeedToEnd);
     }
 
     function indexFromHash() {
@@ -152,49 +401,163 @@
       return Number.isFinite(value) ? value - 1 : 0;
     }
 
-    document.querySelector('#previousSlide').addEventListener('click', () => goTo(currentIndex - 1));
-    document.querySelector('#nextSlide').addEventListener('click', () => goTo(currentIndex + 1));
-    document.querySelector('#toggleFullscreen').addEventListener('click', () => {
-      if (document.fullscreenElement) document.exitFullscreen();
-      else document.documentElement.requestFullscreen();
+    slideCounter.addEventListener('click', () => {
+      if (slideMenu.hidden) openSlideMenu();
+      else closeSlideMenu({ restoreFocus: true });
+    });
+    slideCounter.addEventListener('keydown', event => {
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault(); openSlideMenu();
+      }
+    });
+    slideMenu.addEventListener('click', event => {
+      const item = event.target.closest('[data-slide-index]');
+      if (!item) return;
+      goTo(Number(item.dataset.slideIndex));
+      closeSlideMenu({ restoreFocus: true });
+    });
+    slideMenu.addEventListener('keydown', event => {
+      const index = menuItems.indexOf(document.activeElement);
+      if (event.key === 'Escape') { event.preventDefault(); closeSlideMenu({ restoreFocus: true }); }
+      else if (event.key === 'Tab') closeSlideMenu({ restoreFocus: true });
+      else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+        event.preventDefault();
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? menuItems.length - 1
+          : (index + (event.key === 'ArrowDown' ? 1 : -1) + menuItems.length) % menuItems.length;
+        menuItems[next].focus();
+      }
+    });
+    document.addEventListener('pointerdown', event => {
+      if (!event.target.closest('.slide-menu-anchor')) closeSlideMenu();
+    });
+
+    qrButton.addEventListener('click', () => {
+      closeSlideMenu(); qrOverlay.showModal(); qrButton.setAttribute('aria-expanded', 'true');
+    });
+    qrOverlay.addEventListener('click', () => qrOverlay.close());
+    qrOverlay.addEventListener('close', () => qrButton.setAttribute('aria-expanded', 'false'));
+
+    const frame = document.querySelector('#canvasFrame');
+    function renderCanvas() {
+      const canvas = CONFIG.features?.canvas || {};
+      canvasButton.hidden = !canvas.enabled;
+      canvasDialog.hidden = !canvas.enabled;
+      canvasButton.textContent = canvas.label || 'Canvas';
+      document.querySelector('#canvasTitle').textContent = canvas.label || 'Canvas';
+      frame.title = canvas.label || 'Canvas';
+      if (!canvas.enabled || (frame.hasAttribute('src') && frame.getAttribute('src') !== canvas.url)) {
+        canvasDialog.close();
+        frame.removeAttribute('src');
+      }
+    }
+    renderCanvas();
+    canvasButton.addEventListener('click', () => {
+      closeSlideMenu();
+      if (!frame.hasAttribute('src')) frame.src = CONFIG.features.canvas.url;
+      canvasDialog.showModal();
+      canvasButton.setAttribute('aria-expanded', 'true');
+    });
+    canvasDialog.querySelector('.stage-dialog-close').addEventListener('click', () => canvasDialog.close());
+    canvasDialog.addEventListener('click', event => { if (event.target === canvasDialog) canvasDialog.close(); });
+    canvasDialog.addEventListener('close', () => canvasButton.setAttribute('aria-expanded', 'false'));
+
+    function updateConfig(config) {
+      if (config.settingsRevision < CONFIG.settingsRevision) return;
+      CONFIG = config;
+      document.title = CONFIG.title;
+      applyBrand(CONFIG);
+      schedule = paceSchedule(CONFIG);
+      for (const [index, slide] of CONFIG.slides.entries()) {
+        const section = slides[index];
+        for (const node of section.querySelectorAll('[data-slide-text]')) {
+          const key = node.dataset.slideText;
+          const text = key === 'title' ? slide.title || CONFIG.title
+            : key === 'description' && slide.type === 'cover' ? slide.description || CONFIG.subtitle : slide[key];
+          node.textContent = text || '';
+          node.hidden = !text;
+          if (key === 'description' && slide.type === 'content') node.hidden ||= Boolean(slide.explanation || slide.items?.length);
+        }
+        for (const node of section.querySelectorAll('[data-slide-list]')) {
+          const items = slide[node.dataset.slideList] || [];
+          node.innerHTML = items.map(item => `<li>${escapeHtml(item)}</li>`).join('');
+          node.hidden = !items.length || (node.dataset.slideList === 'items' && Boolean(slide.explanation));
+        }
+        menuItems[index].textContent = `${index + 1}. ${slide.title || slide.id}`;
+        const contact = section.querySelector('.stage-contact');
+        if (contact) contact.outerHTML = contactMarkup();
+        const citationText = section.querySelector('[data-citation-text]');
+        if (citationText) citationText.textContent = CONFIG.citation?.text || '';
+        const citationUrl = section.querySelector('[data-citation-url]');
+        if (citationUrl) {
+          citationUrl.textContent = CONFIG.citation?.url || '';
+          citationUrl.href = CONFIG.citation?.url || '';
+          citationUrl.hidden = !CONFIG.citation?.url;
+        }
+      }
+      slideCounter.setAttribute('aria-label', `Slide ${currentIndex + 1} of ${slides.length}: ${CONFIG.slides[currentIndex].title || CONFIG.title}. Choose a slide`);
+      renderTiming();
+      renderCanvas();
+    }
+
+    function showStageError(message) {
+      stageFeedback.textContent = message;
+      stageFeedback.hidden = false;
+    }
+
+    previousButton.addEventListener('click', () => goTo(currentIndex - 1));
+    nextButton.addEventListener('click', () => goTo(currentIndex + 1));
+    fullscreenButton.addEventListener('click', async () => {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await document.documentElement.requestFullscreen();
+      } catch {
+        showStageError('Fullscreen is unavailable in this browser window.');
+      }
+    });
+    document.addEventListener('fullscreenchange', () => {
+      const label = document.fullscreenElement ? 'Exit fullscreen' : 'Enter fullscreen';
+      fullscreenButton.setAttribute('aria-label', label);
+      fullscreenButton.title = label;
     });
     addEventListener('hashchange', () => goTo(indexFromHash(), { updateHash: false }));
     addEventListener('keydown', event => {
-      if (event.target.closest('button, a, input, textarea, select, [contenteditable]')) return;
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (document.querySelector('dialog[open]') || !slideMenu.hidden) return;
+      if (event.composedPath().some(node => node instanceof Element && node.matches('dicom-study-viewer'))) return;
+      if (document.activeElement?.closest('dicom-study-viewer')) return;
+      if (event.target.closest('button, a, input, textarea, select, summary, [contenteditable]')) return;
       if (['ArrowRight', 'PageDown', ' '].includes(event.key)) {
-        event.preventDefault();
-        goTo(currentIndex + 1);
+        event.preventDefault(); goTo(currentIndex + 1);
       } else if (['ArrowLeft', 'PageUp'].includes(event.key)) {
-        event.preventDefault();
-        goTo(currentIndex - 1);
+        event.preventDefault(); goTo(currentIndex - 1);
       } else if (event.key === 'Home') {
-        event.preventDefault();
-        goTo(0);
+        event.preventDefault(); goTo(0);
       } else if (event.key === 'End') {
-        event.preventDefault();
-        goTo(slides.length - 1);
+        event.preventDefault(); goTo(slides.length - 1);
       } else if (event.key.toLowerCase() === 'f') {
-        event.preventDefault();
-        document.querySelector('#toggleFullscreen').click();
+        event.preventDefault(); fullscreenButton.click();
       }
     });
 
     const connection = LivePresentation.connect({
       role: 'presenter',
+      config: CONFIG,
+      onConfig: updateConfig,
       onState: nextState => {
         roomState = nextState;
-        renderPollResults();
+        renderPollResults(); renderBoards(); renderRanking(); renderExams();
       },
       onHello: message => {
         isController = Boolean(message.authorized);
         if (isController && currentIndex >= 0) {
-          connection.sendVital('activity', { type: 'activity', activity: slides[currentIndex].dataset.activity });
+          connection.sendVital('slide', { type: 'slide', slide: CONFIG.slides[currentIndex].id });
         }
-      }
+      },
+      onError: showStageError
     });
 
     goTo(indexFromHash(), { updateHash: false });
-    renderPollResults();
+    renderPollResults(); renderBoards(); renderRanking();
   </script>
 </body>
 </html>
