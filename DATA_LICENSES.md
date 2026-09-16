@@ -19,7 +19,10 @@ This project's original code and documentation use the MIT license. It
 This project reduces the images from 512 × 512 to 256 × 256 with nearest-neighbor
 sampling, converts the stored value to HU using `HU = value − 1024`, and packages
 pixels as Int16/gzip/base64. Each series manifest records the interval, aggregate
-source-image hash, and applied transformation.
+source-image hash, and applied transformation. The normal CT includes one
+synthetic slice at −165 mm, linearly interpolated in HU between the acquired
+slices at −168 and −162 mm to preserve their physical separation. Its 100 source
+images therefore produce 101 output slices.
 
 This attribution does not mean that NLM approved, certified, sponsored, or maintains this software.
 Under the NLM terms, redistributors must also warn that the data may not be

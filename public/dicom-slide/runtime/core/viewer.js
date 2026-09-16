@@ -489,6 +489,7 @@
 
     async setSlice(value) {
       if (!this.manifest) return;
+      if (!Number.isFinite(Number(value))) return;
       const slice = clamp(Math.round(value), 0, this.manifest.dimensions.slices - 1);
       this.state.slice = slice;
       this.slider.value = String(slice);

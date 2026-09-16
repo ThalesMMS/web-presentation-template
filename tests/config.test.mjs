@@ -53,7 +53,7 @@ test('the template provides the presenter, citation, features, boards and librar
   assert.equal(CONFIG.citation.url, 'https://github.com/ThalesMMS/web-presentation-template');
   assert.equal(CONFIG.citation.text, `Santos, T. M. M. (2026). Interactive presentation template [Computer software]. ${CONFIG.citation.url}`);
   assert.deepEqual(CONFIG.features, {
-    canvas: { enabled: true, url: 'http://192.168.0.10:8086/', label: 'Canvas' }, points: { enabled: false }
+    canvas: { enabled: false, url: '', label: 'Canvas' }, points: { enabled: false }
   });
   assert.deepEqual(CONFIG.boards, {
     region: { title: 'Messages', moderation: 'auto' },

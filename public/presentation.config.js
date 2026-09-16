@@ -27,7 +27,7 @@ export const CONFIG = {
     }
   },
   features: {
-    canvas: { enabled: true, url: 'http://192.168.0.10:8086/', label: 'Canvas' },
+    canvas: { enabled: false, url: '', label: 'Canvas' },
     points: { enabled: false }
   },
   timing: {

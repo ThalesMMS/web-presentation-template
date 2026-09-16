@@ -621,7 +621,18 @@ test('commit requires the study, every manifest and every declared raw chunk', a
   assert.equal(latest(h.control, 'state').examOverrides[EXAM].uploadId, UPLOAD);
 });
 
-test('exam serving generates executable study, manifest and chunk wrappers with immutable cache headers', async t => {
+test('upload parts write storage without broadcasting until commit', async () => {
+  const h = harness();
+  const before = [h.audience.messages.length, h.control.messages.length];
+  await upload(h);
+  assert.deepEqual([h.audience.messages.length, h.control.messages.length], before);
+  const response = await commit(h);
+  assert.equal(response.status, 200);
+  assert.ok(h.audience.messages.length > before[0]);
+  assert.ok(h.control.messages.length > before[1]);
+});
+
+test('exam serving generates executable study, manifest and chunk wrappers with no-store cache headers', async t => {
   const h = harness();
   const originalParse = JSON.parse;
   t.mock.method(JSON, 'parse', function (value, ...args) {
@@ -636,7 +647,7 @@ test('exam serving generates executable study, manifest and chunk wrappers with 
     const response = await h.room.fetch(new Request(new URL(path, base)));
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('Content-Type'), 'text/javascript; charset=utf-8');
-    assert.equal(response.headers.get('Cache-Control'), 'public, max-age=31536000, immutable');
+    assert.equal(response.headers.get('Cache-Control'), 'no-store');
     evaluateScript(await response.text(), new URL(path, base).href, window);
   }
   const registeredStudy = window.__DICOM_SLIDE_STUDIES__[study.studyId];
@@ -714,7 +725,7 @@ function workerHarness(t) {
     }
   };
   const ctx = { waitUntil: promise => waits.push(promise) };
-  return { ...h, forwarded, waits, cacheWrites, fetch: request => worker.fetch(request, env, ctx) };
+  return { ...h, forwarded, waits, cacheWrites, cacheEntries, fetch: request => worker.fetch(request, env, ctx) };
 }
 
 async function presenterCookie(h, origin = 'https://presentation.test') {
@@ -916,22 +927,31 @@ test('Worker validates presenter sessions before forwarding exam mutations and c
   assert.equal((await h.fetch(expired)).status, 404);
 });
 
-test('Worker caches successful public exam scripts and forwards misses to the main room', async t => {
+test('Worker bypasses exam caches and checks storage after removal and reset', async t => {
   const h = workerHarness(t);
   await upload(h);
   await commit(h);
   const request = examRequest(`${EXAM}/${UPLOAD}/study.js`);
   request.headers.set(AUTH_HEADER, '1');
+  h.cacheEntries.set(request.url, new Response('stale cached exam'));
   const first = await h.fetch(request);
+  assert.notEqual(await first.clone().text(), 'stale cached exam');
   assert.equal(first.status, 200);
   assert.equal(h.forwarded.at(-1).roomName, 'main');
   assert.equal(h.forwarded.at(-1).request.headers.get(AUTH_HEADER), null);
-  assert.equal(h.waits.length, 1);
+  assert.equal(h.waits.length, 0);
   await Promise.all(h.waits);
   const second = await h.fetch(examRequest(`${EXAM}/${UPLOAD}/study.js`));
   assert.equal(await second.text(), await first.text());
-  assert.equal(h.forwarded.length, 1);
-  assert.deepEqual(h.cacheWrites, [request.url]);
+  assert.equal(h.forwarded.length, 2);
+  assert.deepEqual(h.cacheWrites, []);
+  await h.room.fetch(examRequest(EXAM, 'DELETE'));
+  assert.equal((await h.fetch(request)).status, 404);
+  await upload(h);
+  await commit(h);
+  assert.equal((await h.fetch(request)).status, 200);
+  await h.send(h.control, { type: 'reset_session' });
+  assert.equal((await h.fetch(request)).status, 404);
   assert.equal((await h.fetch(examRequest(`${EXAM}/missing-upload/study.js`))).status, 404);
-  assert.equal(h.cacheWrites.length, 1);
+  assert.equal(h.cacheWrites.length, 0);
 });

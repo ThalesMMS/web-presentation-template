@@ -333,7 +333,7 @@ function javascriptResponse(source) {
   return new Response(source, {
     headers: {
       'Content-Type': 'text/javascript; charset=utf-8',
-      'Cache-Control': 'public, max-age=31536000, immutable'
+      'Cache-Control': 'no-store'
     }
   });
 }
@@ -600,7 +600,6 @@ export class Room {
       if (resource === 'study' ? !validStudy(value) : !validManifest(value, caseId)) return apiError(`Invalid ${resource}`);
     }
     await this.state.storage.put(storageKey, text);
-    this.broadcast(state);
     return jsonResponse({ ok: true });
   }
 
@@ -870,14 +869,6 @@ export default {
         headers.set(PRESENTER_AUTH_HEADER, '1');
       }
       const room = env.ROOM.get(env.ROOM.idFromName('main'));
-      if (request.method === 'GET') {
-        const cache = caches.default;
-        const cached = await cache.match(request);
-        if (cached) return cached;
-        const response = await room.fetch(new Request(request, { headers }));
-        if (response.ok) ctx.waitUntil(cache.put(request, response.clone()));
-        return response;
-      }
       return room.fetch(new Request(request, { headers }));
     }
 

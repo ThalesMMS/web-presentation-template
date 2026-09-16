@@ -301,15 +301,19 @@ dataset provenance, transformations, attribution, and intended use.
    redact identifying text in titles or burned into images.
 5. Commit makes the upload the replacement for that exam key and broadcasts
    its descriptor. The stage and every phone displaying that exam load the new
-   study. Versioned `/api/exams/` URLs serve the viewer assets, with public
-   immutable caching and Cloudflare edge caching for successful GET responses.
+   study. Versioned `/api/exams/` URLs serve the viewer assets with `Cache-Control:
+   no-store`. Every request checks storage; uploaded exam assets bypass the
+   Cloudflare edge cache.
 
 In the control room's **Exams** section, **Remove uploaded study** deletes the
 stored replacement and restores that exam's built-in library study. A new
 successful upload also removes the previous stored replacement for that exam.
 **Full reset** deletes all stored uploads, including incomplete uploads.
-Removal and reset do not purge previously cached versioned URLs; those responses
-carry a one-year cache lifetime.
+Removal, replacement, and full reset make subsequent requests for deleted assets
+return 404. When upgrading from a deployment that used one-year immutable caching,
+purge its Cloudflare cache. Copies already cached in browsers by that older
+deployment cannot be remotely revoked and may remain until their original expiry;
+the new policy prevents future responses from being cached.
 
 ### Convert your own studies for the library
 
@@ -365,6 +369,11 @@ phones. It hosts the slides and runs the live voting and messaging together.
    with your password (URL-encode it if it contains special characters).
    Share only the address ending in `/participar/`, or the audience QR code,
    with participants. Keep the password and presenter links private.
+   This query-string login can expose the key in browser history, copied links,
+   request logs, and referrer data. Do not bookmark or distribute these links.
+   Rotate `PRESENTER_KEY` with `npx wrangler secret put PRESENTER_KEY` after each
+   presentation and immediately after any suspected exposure; log in again with
+   the replacement key. Treat existing presenter sessions as compromised too.
 
 These steps follow Cloudflare's [publishing guide](https://developers.cloudflare.com/workers/get-started/guide/)
 and [secret configuration guide](https://developers.cloudflare.com/workers/configuration/secrets/).

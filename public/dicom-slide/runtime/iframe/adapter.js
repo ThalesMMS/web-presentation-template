@@ -57,7 +57,6 @@
     element.ready.then(() => {
       global.viewer = element.viewer;
       document.title = element.getState().studyTitle || "DICOM study viewer";
-      report("ready");
     }).catch(() => {});
 
     global.addEventListener("message", (event) => {

@@ -38,6 +38,9 @@
       (document.head || document.documentElement).appendChild(script);
     });
     scriptPromises.set(absolute, promise);
+    promise.catch(() => {
+      if (scriptPromises.get(absolute) === promise) scriptPromises.delete(absolute);
+    });
     return promise;
   }
 

@@ -50,6 +50,9 @@
       document.head.appendChild(script);
     });
     scriptPromises.set(absolute, promise);
+    promise.catch(() => {
+      if (scriptPromises.get(absolute) === promise) scriptPromises.delete(absolute);
+    });
     return promise;
   }
 
@@ -202,10 +205,10 @@
 
     async setSeries(value) {
       if (!this.study || this.destroyed) return;
-      let index = typeof value === "number"
-        ? Math.round(value)
+      const index = typeof value === "number"
+        ? value
         : this.study.series.findIndex((series) => series.id === value || String(series.number) === String(value));
-      index = Math.max(0, Math.min(this.study.series.length - 1, index));
+      if (!Number.isInteger(index) || index < 0 || index >= this.study.series.length) return;
       const series = this.study.series[index];
       if (!series) return;
       if (series.available === false) {

@@ -124,7 +124,9 @@
     _fallback(message) {
       this.failed = true;
       this.failureMessage = message;
-      const context = this.canvas.getContext("2d");
+      const meta = this.canvas.parentElement.querySelector(".dsv-volume-meta");
+      if (meta) meta.textContent = this.failureMessage;
+      const context = this.gl ? null : this.canvas.getContext("2d");
       if (context) {
         const rect = this.canvas.getBoundingClientRect();
         this.canvas.width = Math.max(1, Math.round(rect.width));

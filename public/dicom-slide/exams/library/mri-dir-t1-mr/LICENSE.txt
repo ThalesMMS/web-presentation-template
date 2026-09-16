@@ -19,5 +19,5 @@ chunks for browser delivery. The images are synthetic/model-derived research
 data, not a diagnostic multisequence examination. Not for clinical use.
 
 The complete CC BY 4.0 legal code and the TCIA notice shipped with the source
-download are available at ../../../LICENSES/CC-BY-4.0.txt and
-../../../LICENSES/MRI-DIR-TCIA.txt.
+download are available at ../../../../../LICENSES/CC-BY-4.0.txt and
+../../../../../LICENSES/MRI-DIR-TCIA.txt.

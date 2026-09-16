@@ -331,7 +331,7 @@
     const required = ["rows", "columns", "bitsAllocated", "pixelRepresentation"];
     if (requirePixels) required.push("pixelOffset", "pixelLength");
     const missing = required.filter((key) => meta[key] == null);
-    if (missing.length) throw new Error(`${sourceName}: campos DICOM ausentes: ${missing.join(", ")}`);
+    if (missing.length) throw new Error(`${sourceName}: missing DICOM fields: ${missing.join(", ")}`);
     return meta;
   }
 
@@ -656,9 +656,20 @@
     if (bytes.byteLength !== expectedBytes) {
       throw new Error(`JPEG-LS color payload has ${bytes.byteLength} bytes; expected ${expectedBytes}.`);
     }
-    if (interleaveMode === 1 || interleaveMode === 2) return Uint8Array.from(bytes);
+    if (interleaveMode === 2) return Uint8Array.from(bytes);
 
     const output = new Uint8Array(expectedBytes);
+    if (interleaveMode === 1) {
+      for (let row = 0; row < rows; row += 1) {
+        const rowStart = row * columns * 3;
+        for (let column = 0; column < columns; column += 1) {
+          for (let component = 0; component < 3; component += 1) {
+            output[rowStart + column * 3 + component] = bytes[rowStart + component * columns + column];
+          }
+        }
+      }
+      return output;
+    }
     if (interleaveMode === 0) {
       for (let pixel = 0; pixel < pixelCount; pixel += 1) {
         output[pixel * 3] = bytes[pixel];
@@ -914,7 +925,12 @@
       const record = records[index];
       if (Number(record.rows) !== rows || Number(record.columns) !== columns) throw new Error("The series dimensions are inconsistent.");
       if (Number(record.samplesPerPixel || 1) !== samplesPerPixel) throw new Error("Samples per Pixel is inconsistent within the series.");
-      const pixels = isRgb ? await readRgbPixels(record) : await readMonochromePixels(record);
+      let pixels;
+      try {
+        pixels = isRgb ? await readRgbPixels(record) : await readMonochromePixels(record);
+      } finally {
+        delete record.sourceBytes;
+      }
       const bytes = isRgb ? pixels : int16LittleEndianBytes(pixels);
       for (const value of pixels) {
         if (value < globalMinimum) globalMinimum = value;

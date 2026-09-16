@@ -10,7 +10,7 @@
       "number": "1",
       "title": "Normal CT (before freezing)",
       "modality": "CT",
-      "slices": 100,
+      "slices": 101,
       "rows": 256,
       "columns": 256,
       "sortMode": "spatial",
