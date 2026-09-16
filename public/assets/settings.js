@@ -20,7 +20,7 @@ export const SETTING_GROUPS = [
   { title: 'Canvas', fields: [
     { path: 'features.canvas.enabled', label: 'Show Canvas in the presentation', type: 'checkbox' },
     { path: 'features.canvas.label', label: 'Canvas button label', required: true, maxLength: 60 },
-    { path: 'features.canvas.url', label: 'Canvas URL', type: 'url', maxLength: 2048 }
+    { path: 'features.canvas.url', label: 'Canvas URL (IP or hostname)', type: 'url', maxLength: 2048 }
   ] },
   { title: 'Timing', fields: [
     { path: 'timing.totalMinutes', label: 'Total duration in minutes', type: 'number', required: true, min: 1, max: 1440 }

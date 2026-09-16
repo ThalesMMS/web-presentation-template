@@ -47,7 +47,8 @@ phones, open the stage through a deployed or network-reachable address; a phone'
 Click **Settings** in the stage toolbar, or open the control room and select
 **Settings**. Locally, use `http://localhost:8787/regie/?k=change-this-key#settings`.
 The form edits the title and subtitle, presenter and contact links, citation,
-brand and colors, Canvas, total and per-slide timing, and slide text and lists.
+brand and colors, the Canvas IP/URL, total and per-slide timing, and slide text
+and lists.
 Changing the presentation title also updates cover titles that still match it.
 
 Click **Save settings** to apply changes to connected stage and audience pages
@@ -70,7 +71,7 @@ the editable defaults without modifying this file.
 | `presenter.contact` | `email`, `linkedin`, and `github` links for the stage and audience closing sections. |
 | `citation.text`, `citation.url` | Citation text and source link displayed on the closing slide. |
 | `brand.name`, `brand.colors` | Brand identity and the color tokens `background`, `surface`, `text`, `muted`, `accent`, and `accentStrong`. |
-| `features.canvas` | Set `enabled: false` to hide Canvas. Set `url` to the page to embed and `label` to its toolbar label. The default is enabled with `http://192.168.0.10:8086/`. |
+| `features.canvas` | Configure this in **Settings → Canvas**: enable it, enter the Canvas server URL (IP or hostname, such as `http://192.168.0.10:8086/`), and set its toolbar label. The template default is disabled with an empty URL. |
 | `features.points.enabled` | Initial value of the control room's **Points system** toggle. The template defaults to `false`; a full reset restores this default. |
 | `timing.totalMinutes` | Planned total presentation time, initially 30 minutes. |
 | `timing.slides` | Planned minutes keyed by slide ID, such as `{ 'poll-live': 5, 'exam-1': 8 }`. |

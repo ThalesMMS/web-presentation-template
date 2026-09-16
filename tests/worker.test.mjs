@@ -750,7 +750,7 @@ test('settings save updates both configurations, survives a Room restart and kee
   const settings = settingsFromConfig(CONFIG);
   settings.title = 'Settings verification';
   settings.brand.colors.accent = '#aabbcc';
-  settings.features.canvas = { enabled: false, url: '', label: 'Whiteboard' };
+  settings.features.canvas = { enabled: true, url: 'http://192.168.0.42:8086/', label: 'Canvas' };
   settings.timing.totalMinutes = 45;
   settings.timing.slides['poll-live'] = 0;
   delete settings.timing.slides['exam-1'];
@@ -774,6 +774,7 @@ test('settings save updates both configurations, survives a Room restart and kee
     assert.equal(config.settingsRevision, 1);
     assert.equal(config.title, settings.title);
     assert.equal(config.brand.colors.accent, '#aabbcc');
+    if (path === '/presentation.config.js') assert.deepEqual(config.features.canvas, settings.features.canvas);
     assert.equal(response.headers.get('Cache-Control'), 'no-store');
     if (path === '/audience.config.js') {
       assert.equal(config.features, undefined);
